@@ -1,0 +1,45 @@
+# ---------- Java / Maven / SpringBoot 编译产物 ----------
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+logs/
+!01_源代码/00_可执行部署包/*.jar
+
+# ---------- 前端编译产物 ----------
+node_modules/
+dist/
+*.local
+.vite/
+.cache/
+
+# ---------- IDE 配置 ----------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+
+# ---------- 操作系统文件 ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- 本地敏感配置 ----------
+application-local.yml
+application-local.properties
+application-prod.yml
+application-prod.properties
+*.env
+
+# ---------- 临时文件与压缩包 ----------
+*.tmp
+*.bak
+~$*
+*.zip
