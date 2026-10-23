@@ -1,4 +1,5 @@
 @startuml 校园自习室分布式预约管理系统_业务用例图
+skinparam dpi 300
 ' ================= 全局美化样式 =================
 skinparam usecase {
     BackgroundColor #FDFEFE
@@ -24,14 +25,12 @@ skinparam shadowing true
 skinparam nodesep 25
 skinparam ranksep 40
 
-' 保持从左到右的格式
 left to right direction
 
 actor 学生 as Student
 actor 管理员 as Admin
 
 rectangle 校园自习室分布式预约管理系统 {
-    ' 严格按照顺序声明用例
     usecase "FR-STU-01 用户注册" as STU01 #D6EAF8
     usecase "FR-STU-02 用户登录" as STU02 #FCF3CF
     usecase "FR-STU-03 自习室查询" as STU03 #D6EAF8
@@ -53,8 +52,6 @@ rectangle 校园自习室分布式预约管理系统 {
     usecase "FR-ADM-06 用户与权限管理" as ADM06 #D5F5E3
 }
 
-' ================= 连线区 =================
-' 先写学生的连线（强制 01 到 12 顺序）
 Student -- STU01
 Student -- STU02
 Student -- STU03
@@ -68,7 +65,6 @@ Student -- STU10
 Student -- STU11
 Student -- STU12
 
-' 再写管理员的连线
 Admin -- ADM01
 Admin -- ADM02
 Admin -- ADM03
@@ -76,7 +72,13 @@ Admin -- ADM04
 Admin -- ADM05
 Admin -- ADM06
 
-' 最后写管理员连登录（这样引擎不会为了靠近登录而把上方用例乱挤）
 Admin -- STU02
+
+legend bottom
+|=颜色|=说明|
+|<size:12><back:#D6EAF8>　　　</back></size>|学生功能|
+|<size:12><back:#D5F5E3>　　　</back></size>|管理员功能|
+|<size:12><back:#FCF3CF>　　　</back></size>|通用登录功能|
+end legend
 
 @enduml
