@@ -1,0 +1,82 @@
+@startuml 校园自习室分布式预约管理系统_业务用例图
+' ================= 全局美化样式 =================
+skinparam usecase {
+    BackgroundColor #FDFEFE
+    BorderColor #5D6D7E
+    ArrowColor #AAB7B8
+    FontSize 13
+    BorderThickness 1.2
+    RoundCorner 20
+}
+skinparam actor {
+    BackgroundColor #E8F8F5
+    BorderColor #117A65
+    FontSize 15
+    BorderThickness 2
+}
+skinparam rectangle {
+    BackgroundColor #F9FBFB
+    BorderColor #2C3E50
+    RoundCorner 15
+    BorderThickness 2
+}
+skinparam shadowing true
+skinparam nodesep 25
+skinparam ranksep 40
+
+' 保持从左到右的格式
+left to right direction
+
+actor 学生 as Student
+actor 管理员 as Admin
+
+rectangle 校园自习室分布式预约管理系统 {
+    ' 严格按照顺序声明用例
+    usecase "FR-STU-01 用户注册" as STU01 #D6EAF8
+    usecase "FR-STU-02 用户登录" as STU02 #FCF3CF
+    usecase "FR-STU-03 自习室查询" as STU03 #D6EAF8
+    usecase "FR-STU-04 座位查询" as STU04 #D6EAF8
+    usecase "FR-STU-05 预约座位" as STU05 #D6EAF8
+    usecase "FR-STU-06 签到" as STU06 #D6EAF8
+    usecase "FR-STU-07 取消预约" as STU07 #D6EAF8
+    usecase "FR-STU-08 订单查询" as STU08 #D6EAF8
+    usecase "FR-STU-09 消息查看" as STU09 #D6EAF8
+    usecase "FR-STU-10 暂离" as STU10 #D6EAF8
+    usecase "FR-STU-11 暂离返回" as STU11 #D6EAF8
+    usecase "FR-STU-12 主动离开/签退" as STU12 #D6EAF8
+
+    usecase "FR-ADM-01 自习室管理" as ADM01 #D5F5E3
+    usecase "FR-ADM-02 座位管理" as ADM02 #D5F5E3
+    usecase "FR-ADM-03 座位状态管理" as ADM03 #D5F5E3
+    usecase "FR-ADM-04 订单查看" as ADM04 #D5F5E3
+    usecase "FR-ADM-05 违约记录查看" as ADM05 #D5F5E3
+    usecase "FR-ADM-06 用户与权限管理" as ADM06 #D5F5E3
+}
+
+' ================= 连线区 =================
+' 先写学生的连线（强制 01 到 12 顺序）
+Student -- STU01
+Student -- STU02
+Student -- STU03
+Student -- STU04
+Student -- STU05
+Student -- STU06
+Student -- STU07
+Student -- STU08
+Student -- STU09
+Student -- STU10
+Student -- STU11
+Student -- STU12
+
+' 再写管理员的连线
+Admin -- ADM01
+Admin -- ADM02
+Admin -- ADM03
+Admin -- ADM04
+Admin -- ADM05
+Admin -- ADM06
+
+' 最后写管理员连登录（这样引擎不会为了靠近登录而把上方用例乱挤）
+Admin -- STU02
+
+@enduml
