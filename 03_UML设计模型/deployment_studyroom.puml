@@ -1,0 +1,73 @@
+@startuml 校园自习室分布式预约管理系统_部署图
+skinparam dpi 300
+skinparam shadowing false
+top to bottom direction
+skinparam nodesep 40
+skinparam ranksep 40
+
+' --- 样式 ---
+skinparam node {
+    BackgroundColor #F9FBFB
+    BorderColor #2C3E50
+    BorderThickness 2
+    RoundCorner 10
+}
+skinparam artifact {
+    BackgroundColor #FDFEFE
+    BorderColor #5D6D7E
+}
+skinparam database {
+    BackgroundColor #E8F8F5
+    BorderColor #117A65
+}
+
+' ================= 节点 B (在上方) =================
+node "Ubuntu 虚拟机\n(IP: 192.168.56.101)" <<device>> as NodeB {
+  artifact "监控与消息通知子系统\n(8084.jar)" as NotifyService
+  artifact "预约订单流转子系统\n(8083.jar)" as OrderService
+  
+  database "MySQL\nnotify_db" as NotifyDB
+  database "MySQL\norder_db" as OrderDB
+
+  NotifyService -right-> NotifyDB : <<JDBC>>
+  OrderService -right-> OrderDB : <<JDBC>>
+  
+  OrderService -right-> NotifyService : <<REST-HTTP>>
+  NotifyService -left-> OrderService : <<REST-HTTP>>
+}
+
+' ================= 节点 A (在下方) =================
+node "Windows 宿主机\n(IP: 10.165.59.231)" <<device>> as NodeA {
+  ' 【关键调整】：前端放在最上面，离 Ubuntu 最近
+  artifact "Web前端 (dist静态包)" as WebFront
+  artifact "统一身份权限子系统\n(8081.jar)" as AuthService
+  artifact "自习室座位资源子系统\n(8082.jar)" as RoomSeatService
+  
+  database "MySQL\nauth_db" as AuthDB
+  database "MySQL\nroom_seat_db" as RoomSeatDB
+
+  ' 内部布局：Web前端往下连服务，服务往下连库
+  WebFront -down-> AuthService : <<REST-HTTP>>
+  WebFront -down-> RoomSeatService : <<REST-HTTP>>
+  
+  AuthService -down-> AuthDB : <<JDBC>>
+  RoomSeatService -down-> RoomSeatDB : <<JDBC>>
+}
+
+' ================= 用户与跨节点连线 =================
+actor "用户浏览器" as Browser
+
+' 用户在最底下，连前端（这条线稍微长一点，但只有一根，不会乱）
+Browser -up-> WebFront : <<HTTP>>
+
+' 前端直接往下(跨节点)连 8083 和 8084
+WebFront -up-> OrderService : <<REST-HTTP>>
+WebFront -up-> NotifyService : <<REST-HTTP>>
+
+' 订单在 NodeB，座位在 NodeA，跨节点横线
+OrderService -down-> RoomSeatService : <<REST-HTTP>>
+
+' ================= 强制排版 =================
+' 强制 Ubuntu 在上，Windows 在下
+NodeB -[hidden]down- NodeA
+@enduml
