@@ -30,6 +30,7 @@ CREATE TABLE `seat_info` (
   `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `is_deleted` TINYINT(1) DEFAULT 0 COMMENT '逻辑删除',
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_room_seat` (`room_id`, `seat_number`),
   KEY `idx_room_id` (`room_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='座位信息表';
 
