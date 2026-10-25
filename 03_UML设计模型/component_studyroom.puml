@@ -1,0 +1,67 @@
+@startuml 校园自习室分布式预约管理系统_构件图
+skinparam dpi 300
+' ================= 全局美化样式 =================
+skinparam component {
+    BackgroundColor #FDFEFE
+    BorderColor #5D6D7E
+    ArrowColor #AAB7B8
+    FontSize 13
+    BorderThickness 1.2
+    RoundCorner 20
+}
+skinparam database {
+    BackgroundColor #E8F8F5
+    BorderColor #117A65
+    FontSize 13
+    BorderThickness 2
+}
+skinparam rectangle {
+    BackgroundColor #F9FBFB
+    BorderColor #2C3E50
+    RoundCorner 15
+    BorderThickness 2
+}
+skinparam shadowing true
+skinparam nodesep 38
+skinparam ranksep 55
+
+left to right direction
+
+component "Web前端" as frontend
+
+component "统一身份权限子系统\n(8081)" as auth
+component "自习室座位资源子系统\n(8082)" as seat
+component "预约订单流转子系统\n(8083)" as order
+' 修正：对齐需求文档 4.3 的命名
+component "监控与消息通知子系统\n(8084)" as notify
+
+database "auth_db" as db_auth
+database "room_seat_db" as db_seat
+database "order_db" as db_order
+database "notify_db" as db_notify
+
+' ========== JDBC：子系统仅访问本机自有数据库（禁止跨库直连） ==========
+auth -- db_auth : <<JDBC>>
+seat -- db_seat : <<JDBC>>
+order -- db_order : <<JDBC>>
+notify -- db_notify : <<JDBC>>
+
+' ========== Web前端调用后端（REST-HTTP） ==========
+frontend ..> auth : <<REST-HTTP>>\n登录、注册、鉴权校验
+frontend ..> seat : <<REST-HTTP>>\n自习室、座位查询与管理
+frontend ..> order : <<REST-HTTP>>\n订单全流程、订单查询、配置获取
+' 修复：补齐消息查看业务连线
+frontend ..> notify : <<REST-HTTP>>\n消息查看、已读操作
+
+' ========== 后端跨服务调用（内部接口调用链路） ==========
+order ..> seat : <<REST-HTTP>>\n锁座、释放座位、同步状态
+order ..> notify : <<REST-HTTP>>\n消息落库与异步推送
+notify ..> order : <<REST-HTTP>>\n超时扫描触发、读取业务阈值
+
+legend bottom
+|=标记|=说明|
+|<<JDBC>>|子系统访问本机自有数据库|
+|<<REST-HTTP>>|跨构件远程HTTP调用（分布式）|
+end legend
+
+@enduml
