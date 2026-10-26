@@ -1,7 +1,7 @@
 -- ==========================================================
 -- 校园自习室分布式预约管理系统 - 座位资源子系统独立脚本
 -- 负责人：成员2-何思媚
--- 版本：V1.0（已通过表结构审核）
+-- 版本：V1.1（根据成员3评审意见修订）
 -- 说明：遵循全局数据模型规范，主键统一 BIGINT 自增，包含公共字段，无物理外键。
 -- ==========================================================
 
@@ -38,17 +38,20 @@ CREATE TABLE `seat_info` (
 CREATE TABLE `seat_occupancy` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
   `seat_id` BIGINT NOT NULL COMMENT '座位ID (逻辑外键)',
-  `order_id` BIGINT NOT NULL COMMENT '订单ID (由订单子系统传递，逻辑外键)',
+  `order_id` BIGINT NOT NULL COMMENT '订单ID (逻辑外键，一单一座)',
   `start_time` DATETIME NOT NULL COMMENT '占用开始时间',
   `end_time` DATETIME NOT NULL COMMENT '占用结束时间',
-  `status` TINYINT DEFAULT 1 COMMENT '占用状态: 1锁定中, 0已释放',
+  `release_status` TINYINT DEFAULT 0 COMMENT '逻辑释放状态: 0未释放(锁定中), 1已释放',
+  `release_time` DATETIME DEFAULT NULL COMMENT '释放时间',
+  `action` VARCHAR(20) DEFAULT NULL COMMENT '释放原因(CANCEL/TIMEOUT/FINISH)',
   `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `is_deleted` TINYINT(1) DEFAULT 0 COMMENT '逻辑删除',
   PRIMARY KEY (`id`),
-  -- 用来快速查冲突
-  KEY `idx_seat_time` (`seat_id`, `start_time`, `end_time`),
-  KEY `idx_order_id` (`order_id`)
+  -- 一单一座：order_id 唯一约束
+  UNIQUE KEY `uk_order_id` (`order_id`),
+  -- 支撑时段冲突校验的索引
+  KEY `idx_seat_start_time` (`seat_id`, `start_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='座位时段占用记录表';
 
 -- 4. 初始测试数据
