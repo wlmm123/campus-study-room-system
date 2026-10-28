@@ -1,7 +1,7 @@
 -- ==========================================================
 -- 模块：订单流转子系统 (order_db) - 节点B
 -- 编写人：成员3
--- 版本：V1.0
+-- 版本：V1.1（根据成员2评审意见修订：补充公共字段）
 -- 依据：E-R图、REST接口契约-v3、小组开发契约
 -- ==========================================================
 
@@ -24,6 +24,9 @@ CREATE TABLE `order_info` (
   `end_time` datetime NOT NULL COMMENT '预约结束时间',
   `temp_leave_start_time` datetime DEFAULT NULL COMMENT '暂离开始时间',
   `finish_time` datetime DEFAULT NULL COMMENT '订单进入终态时间；仅终态有值，进行中为NULL',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0未删, 1已删',
   PRIMARY KEY (`id`),
   KEY `idx_user_id` (`user_id`),
   KEY `idx_seat_id` (`seat_id`),
@@ -41,6 +44,8 @@ CREATE TABLE `violation` (
   `type` varchar(50) NOT NULL COMMENT '违约类型（超时未签到, 暂离超时）',
   `violation_time` datetime NOT NULL COMMENT '业务违约发生时间',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '违约记录入库落库时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0未删, 1已删',
   `reason` varchar(255) DEFAULT NULL COMMENT '违约原因描述',
   PRIMARY KEY (`id`),
   KEY `idx_order_id` (`order_id`),
@@ -49,6 +54,8 @@ CREATE TABLE `violation` (
 
 -- ----------------------------
 -- 3. 订单状态流转日志表 (ORDER_STATUS_LOG)
+--     说明：append-only 审计日志表，仅追加不更新不删除，
+--           transition_time 即创建时间语义，故不设 update_time / is_deleted。
 -- ----------------------------
 DROP TABLE IF EXISTS `order_status_log`;
 CREATE TABLE `order_status_log` (
@@ -57,7 +64,7 @@ CREATE TABLE `order_status_log` (
   `from_status` varchar(20) DEFAULT NULL COMMENT '原状态；订单首次创建初始流转记录时为NULL',
   `to_status` varchar(20) NOT NULL COMMENT '新状态',
   `operator_type` varchar(20) NOT NULL COMMENT '操作来源（STUDENT=学生手动操作, SYSTEM=定时任务系统触发）',
-  `transition_time` datetime NOT NULL COMMENT '业务流转时间',
+  `transition_time` datetime NOT NULL COMMENT '业务流转时间（即日志创建时间）',
   `reason` varchar(255) DEFAULT NULL COMMENT '变更原因',
   PRIMARY KEY (`id`),
   KEY `idx_order_id` (`order_id`)
