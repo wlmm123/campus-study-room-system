@@ -1,0 +1,240 @@
+@startuml 校园自习室分布式预约管理系统_实体类图
+skinparam limitSize false
+skinparam dpi 200
+skinparam classAttributeIconSize 0
+skinparam shadowing true
+
+' 【关键】使用 polyline（折线）而不是纯粹的 ortho，可以避免长线乱绕
+skinparam linetype polyline
+skinparam nodesep 40
+skinparam ranksep 90
+
+skinparam class {
+    BackgroundColor #FDFEFE
+    BorderColor #5D6D7E
+    ArrowColor #34495E
+    FontSize 12
+    BorderThickness 1.2
+}
+skinparam package {
+    BackgroundColor #F4F6F7
+    BorderColor #2C3E50
+    FontSize 14
+    BorderThickness 2
+    RoundCorner 10
+}
+
+' ================= 1. 身份权限子系统 (auth_db) =================
+package "身份权限子系统 (auth_db)" as auth_db {
+    together {
+        class sys_user {
+            + id : bigint
+            + username : varchar
+            + password : varchar
+            + real_name : varchar
+            + status : tinyint
+            + create_time : datetime
+            + update_time : datetime
+            + is_deleted : tinyint
+        }
+        class sys_role {
+            + id : bigint
+            + role_name : varchar
+            + role_code : varchar
+            + create_time : datetime
+            + update_time : datetime
+            + is_deleted : tinyint
+        }
+        class sys_user_role {
+            + id : bigint
+            + user_id : bigint
+            + role_id : bigint
+            + create_time : datetime
+            + update_time : datetime
+            + is_deleted : tinyint
+        }
+    }
+    sys_user -[hidden]right- sys_role
+    sys_user -[hidden]down- sys_user_role
+}
+
+' ================= 2. 订单流转子系统 (order_db) - 枢纽中心 =================
+package "订单流转子系统 (order_db)" as order_db {
+    together {
+        class biz_config {
+            + id : bigint
+            + config_key : varchar
+            + config_value : varchar
+            + description : varchar
+            --
+            【独立配置表，无外键关联】
+        }
+        class order_info {
+            + id : bigint
+            + user_id : bigint
+            + seat_id : bigint
+            + status : varchar
+            + start_time : datetime
+            + end_time : datetime
+            + temp_leave_start_time : datetime
+            + finish_time : datetime
+            + create_time : datetime
+            + update_time : datetime
+            + is_deleted : tinyint
+        }
+        class violation {
+            + id : bigint
+            + order_id : bigint
+            + user_id : bigint
+            + type : varchar
+            + violation_time : datetime
+            + create_time : datetime
+            + update_time : datetime
+            + is_deleted : tinyint
+            + reason : varchar
+        }
+        class order_status_log {
+            + id : bigint
+            + order_id : bigint
+            + from_status : varchar
+            + to_status : varchar
+            + operator_type : varchar
+            + transition_time : datetime
+            + reason : varchar
+        }
+    }
+    ' 内部排列
+    biz_config -[hidden]down- order_info
+    order_info -[hidden]down- violation
+    violation -[hidden]right- order_status_log
+}
+
+' ================= 3. 座位资源子系统 (room_seat_db) =================
+package "座位资源子系统 (room_seat_db)" as room_seat_db {
+    together {
+        class room_info {
+            + id : bigint
+            + room_name : varchar
+            + location : varchar
+            + status : tinyint
+            + create_time : datetime
+            + update_time : datetime
+            + is_deleted : tinyint
+        }
+        class seat_info {
+            + id : bigint
+            + room_id : bigint
+            + seat_number : varchar
+            + status : varchar
+            + create_time : datetime
+            + update_time : datetime
+            + is_deleted : tinyint
+        }
+        class seat_occupancy {
+            + id : bigint
+            + seat_id : bigint
+            + order_id : bigint
+            + start_time : datetime
+            + end_time : datetime
+            + release_status : tinyint
+            + release_time : datetime
+            + action : varchar
+            + create_time : datetime
+            + update_time : datetime
+            + is_deleted : tinyint
+        }
+    }
+    room_info -[hidden]down- seat_info
+    seat_info -[hidden]down- seat_occupancy
+}
+
+' ================= 4. 监控通知子系统 (notify_db) =================
+package "监控通知子系统 (notify_db)" as notify_db {
+    together {
+        class notify_task_log {
+            + id : bigint
+            + execute_time : datetime
+            + handle_count : int
+            + sign_in_timeout_released : int
+            + temp_leave_timeout_released : int
+            + expired_completed : int
+            + violation_created : int
+            + seat_release_failed : int
+            + message_push_triggered : int
+            + cost_ms : bigint
+            + trigger_type : varchar
+            --
+            【独立任务日志表，无外键关联】
+        }
+        class notify_message {
+            + id : bigint
+            + user_id : bigint
+            + order_id : bigint
+            + event_type : varchar
+            + title : varchar
+            + content : varchar
+            + status : varchar
+            + biz_time : datetime
+            + dedup_key : varchar
+            + create_time : datetime
+            + update_time : datetime
+            + read_time : datetime
+            + is_deleted : tinyint
+        }
+        class notify_push_log {
+            + id : bigint
+            + message_id : bigint
+            + push_status : varchar
+            + retry_count : int
+            + error_msg : varchar
+            + create_time : datetime
+            + update_time : datetime
+        }
+    }
+    notify_task_log -[hidden]down- notify_message
+    notify_message -[hidden]down- notify_push_log
+}
+
+' =========================================================
+' 核心排版：三列布局，紧凑居中
+' =========================================================
+auth_db -[hidden]right- order_db
+order_db -[hidden]right- room_seat_db
+order_db -[hidden]right- notify_db
+
+' 将右侧的座位和通知上下分开
+room_seat_db -[hidden]down- notify_db
+
+' =========================================================
+' 业务连线
+' =========================================================
+
+' 1. 内部连线
+sys_user "1" ..> "0..*" sys_user_role : 逻辑外键(user_id)
+sys_role "1" ..> "0..*" sys_user_role : 逻辑外键(role_id)
+
+order_info "1" ..> "0..*" violation : 逻辑外键(order_id)
+order_info "1" ..> "1..*" order_status_log : 逻辑外键(order_id)
+
+notify_message "1" ..> "0..*" notify_push_log : 逻辑外键(message_id)
+
+room_info "1" ..> "0..*" seat_info : 逻辑外键(room_id)
+seat_info "1" ..> "0..*" seat_occupancy : 逻辑外键(seat_id)
+
+' 2. 左侧(身份) 指向 中间(订单)
+sys_user "1" ..> "0..*" order_info : 逻辑外键(user_id)
+sys_user "1" ..> "0..*" violation : 逻辑外键(user_id)
+
+' 3. 右侧上(座位) 指向 中间(订单)
+seat_info "1" ..> "0..*" order_info : 逻辑外键(seat_id)
+order_info "1" ..> "0..1" seat_occupancy : 逻辑外键(order_id)
+
+' 4. 中间(订单) 指向 右侧下(通知)
+order_info "1" ..> "0..*" notify_message : 逻辑外键(order_id)
+notify_task_log "0..*" ..> "1" order_info : 逻辑调度\n触发批量超时处理(非外键)
+biz_config "1" ..> "0..*" notify_task_log : 逻辑依赖\n通知读取订单配置(非外键)
+
+' 5. 左侧(身份) 跨越连接 右侧下(通知)
+sys_user "1" ..> "0..*" notify_message : 逻辑外键(user_id)
+
+@enduml
