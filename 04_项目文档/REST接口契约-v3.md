@@ -386,7 +386,7 @@ internal:
 
 (5)锁座成功，尝试生成订单；**若订单落库失败，调用座位释放接口 `POST /api/internal/seats/{seatId}/release`，action传值 `CANCEL` 做补偿；不返回成功**；
 
-(6)落库成功生成订单，订单状态为待签到；异步调用通知子系统消息推送接口推送预约成功消息（消息推送接口由成员4后续在契约中定义），推送失败仅记录日志，不阻塞订单主流程。
+(6) 落库成功生成订单，订单状态为待签到；异步调用通知子系统消息推送接口 `POST /api/internal/notify/push`，`eventType` 传 `RESERVE_SUCCESS`，`dedupKey` 传 `RESERVE_SUCCESS:{orderId}` 推送预约成功消息，推送失败仅记录日志，不阻塞订单主流程。
 
 - **响应示例**：
 
@@ -534,8 +534,10 @@ internal:
 
 - ① 如果当前时间 ≥ 预约结束时间：
   先调用座位子系统release接口，action传值`FINISH`；座位子系统返回业务错误则直接透传code与message，本地不做变更；座位调用成功；订单转为已完成；清空`tempLeaveStartTime`；不生成违约记录；不推送消息；网络调用失败，本地不变更，返回业务错误码=1007（HTTP状态码200），定时任务补偿。
-- ② 如果当前时间 > 暂离开始时间+暂离保留上限 且 当前时间＜预约结束时间：
-  先调用座位release接口，action传值`TIMEOUT`；座位子系统返回业务错误则直接透传code与message，本地不做变更；座位调用成功；订单转为暂离超时释放；生成违约记录（类型`暂离超时`）；清空`tempLeaveStartTime`；异步推送消息（消息推送接口由成员4后续在契约中定义）；推送失败仅记日志不阻塞；返回业务错误码`1004`；网络调用失败，本地不变更，返回业务错误码=1007（HTTP状态码200），定时任务补偿。
+
+- ② 如果当前时间 > 暂离开始时间+暂离保留上限 且 当前时间＜预约结束时间：  
+  先调用座位release接口，action传值`TIMEOUT`；座位子系统返回业务错误则直接透传code与message，本地不做变更；座位调用成功；订单转为暂离超时释放；生成违约记录（类型`暂离超时`）；清空`tempLeaveStartTime`；异步调用通知子系统接口 `POST /api/internal/notify/push`，`eventType` 传 `TEMP_LEAVE_TIMEOUT_RELEASE`，`dedupKey` 传 `TEMP_LEAVE_TIMEOUT_RELEASE:{orderId}`；推送失败仅记日志不阻塞；返回业务错误码`1004`；网络调用失败，本地不变更，返回业务错误码=1007（HTTP状态码200），定时任务补偿。
+
 - ③ 其余情况为正常返回：
   先调用座位status接口设置为“已占用”；座位子系统返回业务错误则直接透传code与message，本地不做变更；座位调用成功；清空`tempLeaveStartTime`；订单保持已签到；网络调用失败，本地不变更，返回业务错误码=1007（HTTP状态码200），定时任务补偿。
 
@@ -551,6 +553,16 @@ internal:
     "seatStatus": "已占用",
     "tempLeaveStartTime": null
   }
+}
+```
+
+- **响应示例（暂离超时分支）**：
+
+```json
+{
+  "code": 1004,
+  "message": "暂离已超时，座位已释放",
+  "data": null
 }
 ```
 
@@ -735,6 +747,7 @@ internal:
 - **鉴权说明**：内部接口，请求头必须携带 `X-Internal-Token: campus_studyroom_internal_2026`；前端禁止访问。鉴权失败返回业务错误码`1005`。
 - **入参**：无请求体
 - **业务规则**：读取本地BIZ_CONFIG表配置数据返回。
+- **备注**：`max_duration_hours` 仅后端内部校验用、不在契约 4.2.11 对外返回。
 - **响应示例**：
 
 ```json
@@ -768,9 +781,9 @@ internal:
 
 (3)扫描分支严格按使用到期优先：
 
-- ① 使用到期：订单状态=已签到（含暂离中）且 `当前时间 >= endTime`；先调用座位释放接口 `action=FINISH`；座位调用成功，订单置`已完成`，清空`tempLeaveStartTime`，不生成违约记录；座位释放失败记录日志，计入`seatReleaseFailed`，该订单跳过本次处理；
-- ② 超时未签到：订单状态=待签到 且 `当前时间 > startTime + 签到截止时长`；先调用座位释放接口 `action=TIMEOUT`；座位调用成功；订单置`超时释放`；生成违约记录（类型`超时未签到`）；异步推送消息（消息推送接口由成员4后续在契约中定义）；推送失败仅记日志；座位释放失败记录日志，计入`seatReleaseFailed`，订单跳过本次处理；
-- ③ 暂离超时：订单状态=已签到，`tempLeaveStartTime`不为空，`当前时间 > tempLeaveStartTime + 暂离保留上限` 且 `当前时间 < endTime`；先调用座位释放接口`action=TIMEOUT`；座位调用成功；订单置`暂离超时释放`；生成违约记录（类型`暂离超时`）；异步推送消息；推送失败仅记日志；座位释放失败记录日志，计入`seatReleaseFailed`，订单跳过本次处理。
+- ① 使用到期：订单状态=已签到（含暂离中）且 `当前时间 >= endTime`；先调用座位释放接口 `action=FINISH`；座位调用成功，订单置`已完成`，清空`tempLeaveStartTime`，不生成违约记录；（可选）异步调用通知子系统接口 `POST /api/internal/notify/push`，`eventType` 传 `USE_EXPIRED_COMPLETE`，推送使用到期提示消息，推送失败仅记日志。座位释放失败记录日志，计入`seatReleaseFailed`，该订单跳过本次处理；
+- ② 超时未签到：订单状态=待签到 且 `当前时间 > startTime + 签到截止时长`；先调用座位释放接口 `action=TIMEOUT`；座位调用成功；订单置`超时释放`；生成违约记录（类型`超时未签到`）；异步调用通知子系统接口 `POST /api/internal/notify/push`，`eventType` 传 `SIGN_IN_TIMEOUT_RELEASE`，`dedupKey` 传 `SIGN_IN_TIMEOUT_RELEASE:{orderId}`；推送失败仅记日志；座位释放失败记录日志，计入`seatReleaseFailed`，订单跳过本次处理；
+- ③ 暂离超时：订单状态=已签到，`tempLeaveStartTime`不为空，`当前时间 > tempLeaveStartTime + 暂离保留上限` 且 `当前时间 < endTime`；先调用座位释放接口`action=TIMEOUT`；座位调用成功；订单置`暂离超时释放`；生成违约记录（类型`暂离超时`）；异步调用通知子系统接口 `POST /api/internal/notify/push`，`eventType` 传 `TEMP_LEAVE_TIMEOUT_RELEASE`，`dedupKey` 传 `TEMP_LEAVE_TIMEOUT_RELEASE:{orderId}`；推送失败仅记日志；座位释放失败记录日志，计入`seatReleaseFailed`，订单跳过本次处理。
 
 （4）座位释放失败不阻塞整体扫描流程，记录日志统计失败数；消息推送失败仅记录日志，不阻塞扫描主流程。
 
