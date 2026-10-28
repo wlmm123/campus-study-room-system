@@ -785,7 +785,7 @@ internal:
 - ② 超时未签到：订单状态=待签到 且 `当前时间 > startTime + 签到截止时长`；先调用座位释放接口 `action=TIMEOUT`；座位调用成功；订单置`超时释放`；生成违约记录（类型`超时未签到`）；异步调用通知子系统接口 `POST /api/internal/notify/push`，`eventType` 传 `SIGN_IN_TIMEOUT_RELEASE`，`dedupKey` 传 `SIGN_IN_TIMEOUT_RELEASE:{orderId}`；推送失败仅记日志；座位释放失败记录日志，计入`seatReleaseFailed`，订单跳过本次处理；
 - ③ 暂离超时：订单状态=已签到，`tempLeaveStartTime`不为空，`当前时间 > tempLeaveStartTime + 暂离保留上限` 且 `当前时间 < endTime`；先调用座位释放接口`action=TIMEOUT`；座位调用成功；订单置`暂离超时释放`；生成违约记录（类型`暂离超时`）；异步调用通知子系统接口 `POST /api/internal/notify/push`，`eventType` 传 `TEMP_LEAVE_TIMEOUT_RELEASE`，`dedupKey` 传 `TEMP_LEAVE_TIMEOUT_RELEASE:{orderId}`；推送失败仅记日志；座位释放失败记录日志，计入`seatReleaseFailed`，订单跳过本次处理。
 
-（（4）座位释放失败不阻塞整体扫描流程，记录日志统计失败数；消息推送失败仅记录日志，不阻塞扫描主流程。
+（4）座位释放失败不阻塞整体扫描流程，记录日志统计失败数；消息推送失败仅记录日志，不阻塞扫描主流程。
 （5）统计输出：总处理数、签到超时释放数、暂离超时释放数、到期完成数、生成违约记录数、座位释放失败数、触发消息推送数。统计字段为运行时调度简报，不持久化存储。
 
 **响应示例**：
