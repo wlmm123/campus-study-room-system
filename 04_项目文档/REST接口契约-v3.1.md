@@ -529,10 +529,9 @@ internal:
 }
 ```
 
-#### 4.1.6 管理员查询角色列表
+#### 4.1.6 管理员查询角色列表（对应需求 FR-ADM-06 角色分配页面）
 
-**路径**：`GET /api/admin/roles`
-
+- **路径**：`GET /api/admin/roles`
 - **描述**：管理员角色分配页面加载时调用，获取系统内全部可选角色，用于渲染角色下拉框，避免前端硬编码 `roleId`。
 - **请求头**：`Authorization: Bearer <JWT_Token>`（当前登录 Token 必须具备 ADMIN 角色权限；普通学生调用返回 HTTP `403`）
 - **入参**：无
@@ -576,14 +575,6 @@ internal:
 ```json
 { "code": 401, "message": "Token 无效或已过期", "data": null }
 ```
-
-```json
-
-```
-
-
-
-
 
 ### 4.2 订单流转子系统（8083）- 负责人：成员3
 
