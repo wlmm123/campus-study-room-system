@@ -25,7 +25,7 @@ skinparam note {
     FontSize 12
 }
 
-title 预约座位（FR-STU-05）顺序图\n依据契约 V3.0 4.2.1 / 3.3 / 4.3.4
+title 预约座位（FR-STU-05）顺序图\n依据：接口契约、概要设计、需求规格说明书
 
 actor 学生 as Student
 participant "前端页面\n(Web)" as Frontend
@@ -38,7 +38,7 @@ Frontend -> OrderSvc : 2. POST /api/orders/reserve\n(携带 JWT)
 activate OrderSvc
 
 OrderSvc -> OrderSvc : 3. 参数与时段校验\n(时长档位、不跨天、不早于当前)
-note right: 校验 seatId, startTime, durationHours\n(档位 1-8，开始+时长≤次日00:00:00)
+note right: 校验 seatId, startTime, durationHours\n校验时长档位符合配置(如1-8)且≤最大时长\n(开始+时长≤次日00:00:00)
 
 alt 参数校验失败
     OrderSvc --> Frontend : 返回 1002 (预约时间不在可选范围内/跨天)\n(HTTP状态码 200)
@@ -91,15 +91,17 @@ else 校验通过
 
         alt 订单落库失败
             OrderSvc -> SeatSvc : 9a. POST .../release\n(orderId, action: CANCEL)
-            note right: 请求头携带 X-Internal-Token（内部鉴权）
+            note right
+              请求头携带 X-Internal-Token（内部鉴权）
+              补偿释放 (若网络无响应记录日志，不阻塞主流程)
+            end note
             activate SeatSvc
-            note right: 补偿释放 (若网络无响应记录日志，\n不阻塞主流程)
             SeatSvc --> OrderSvc : 9b. 释放成功
             deactivate SeatSvc
             OrderSvc --> Frontend : 10a. 返回预约失败（不返回成功）\n(座位已补偿释放)
 
         else 落库成功
-            OrderSvc ->> NotifySvc : 9c. POST /api/internal/notify/push
+            OrderSvc ->> NotifySvc : 9c. POST .../push\n(含 eventType, dedupKey)
             activate NotifySvc
             note over OrderSvc, NotifySvc
               异步投递，不等待业务结果；
