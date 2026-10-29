@@ -529,6 +529,62 @@ internal:
 }
 ```
 
+#### 4.1.6 管理员查询角色列表
+
+**路径**：`GET /api/admin/roles`
+
+- **描述**：管理员角色分配页面加载时调用，获取系统内全部可选角色，用于渲染角色下拉框，避免前端硬编码 `roleId`。
+- **请求头**：`Authorization: Bearer <JWT_Token>`（当前登录 Token 必须具备 ADMIN 角色权限；普通学生调用返回 HTTP `403`）
+- **入参**：无
+- **出参**：
+
+```json
+{
+  "code": 200,
+  "message": "查询成功",
+  "data": [
+    {
+      "roleId": 1,
+      "roleName": "学生",
+      "roleCode": "STUDENT"
+    },
+    {
+      "roleId": 2,
+      "roleName": "管理员",
+      "roleCode": "ADMIN"
+    }
+  ]
+}
+```
+
+- **业务规则**：
+  
+  （1）仅管理员可调用，非管理员返回 HTTP `403`；
+  
+  （2）返回 `sys_role` 表中 `is_deleted = 0` 的全部角色，按 `id` 升序；
+  
+  （3）字段 `roleCode` 用于前端条件渲染（如仅允许分配 `STUDENT`/`ADMIN`），`roleId` 用于 4.1.4 分配角色接口入参；
+  
+  （4）该接口为只读接口，不修改任何数据；角色数据由 `init_nodeA.sql` 初始化（`sys_role` 表预置 `STUDENT`、`ADMIN` 两条记录）。
+
+- **错误返回示例**：
+
+```json
+{ "code": 403, "message": "无权限", "data": null }
+```
+
+```json
+{ "code": 401, "message": "Token 无效或已过期", "data": null }
+```
+
+```json
+
+```
+
+
+
+
+
 ### 4.2 订单流转子系统（8083）- 负责人：成员3
 
 **调用座位子系统接口通用说明**
