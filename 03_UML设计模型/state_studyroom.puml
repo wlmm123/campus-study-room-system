@@ -1,0 +1,108 @@
+@startuml 校园自习室分布式预约管理系统_订单状态图
+' ================= 全局设置 =================
+skinparam dpi 300
+skinparam shadowing true
+skinparam linetype polyline
+skinparam nodesep 50
+skinparam ranksep 60
+
+' ================= 现代柔和配色 =================
+skinparam state {
+    BackgroundColor #F4F9F9
+    BorderColor #2C3E50
+    ArrowColor #5D6D7E
+    FontSize 14
+    BorderThickness 1.5
+    RoundCorner 25
+}
+skinparam note {
+    BackgroundColor #FFF9E6
+    BorderColor #F39C12
+    FontSize 13
+    BorderThickness 1.2
+}
+
+hide empty description
+
+' ================= 状态定义 =================
+state "待签到" as Pending #AED6F1
+state "已签到\n(使用中)" as InUse #AED6F1
+state "已签到\n(暂离中)" as TempLeave #AED6F1
+
+state "已完成" as Completed #D5F5E3
+state "已取消" as Cancelled #D5F5E3
+state "暂离超时\n释放" as TempLeaveTimeout #FADBD8
+state "超时释放" as TimeoutReleased #FADBD8
+
+' ================= 状态流转连线 =================
+[*] --> Pending : 预约下单\n(锁座成功)
+
+' 1. 待签到流向
+Pending --> InUse : 签到 (FR-STU-06)\n[开始 ≤ now ≤ 开始+截止]
+Pending --> Cancelled : 取消预约 (FR-STU-07)\n[now ≤ 开始+截止]
+Pending --> TimeoutReleased : 超时未签到\n[now > 开始+截止]\n(定时任务)
+
+' 2. 内部循环
+InUse --> TempLeave : 暂离 (FR-STU-10)\n[now < 预约结束]
+TempLeave --> InUse : 正常返回 (FR-STU-11③)\n[now ≤ 暂离开始+上限 且 now < 预约结束]
+
+' 3. 流转至正常终态
+' 【关键修改】：在文字前后加了不可见空格，强行将两根线上下撑开，避免重合
+InUse --> Completed : \t\t\t主动离开/签退 (FR-STU-12)\n或 使用到期(在座, FR-SYS-04, 定时任务)\n(不违约)\t\t\t
+TempLeave --> Completed : 到期优先 (FR-STU-11①)\n或 主动离开/签退 (FR-STU-12, 优先于暂离超时)\n(不违约)
+
+' 4. 流转至违约终态
+TempLeave --> TempLeaveTimeout : 暂离超时 (FR-STU-11② / FR-SYS-05)\n[now > 暂离开始+上限 且 now < 预约结束]\n(主动/定时任务，违约)
+
+' 5. 终态收敛到结束节点
+Cancelled --> [*]
+Completed --> [*]
+TempLeaveTimeout --> [*]
+TimeoutReleased --> [*]
+
+' ================= 【核心排版魔法】强制节点对齐 =================
+Pending -[hidden]down-> InUse
+InUse -[hidden]right-> TempLeave
+
+Cancelled -[hidden]right-> Completed
+Completed -[hidden]right-> TempLeaveTimeout
+TempLeaveTimeout -[hidden]right-> TimeoutReleased
+
+' ================= 注释说明 =================
+note right of Pending
+<b>【守卫条件严格校验】</b>
+1. 预约开始前不可签到。
+2. 超过签到截止时间不可取消（返回 1003），
+   订单保持待签到，交由定时任务处理。
+end note
+
+note bottom of InUse
+<b>【已签到子状态】</b>
+底层数据库 status 同为“已签到”，
+以 temp_leave_start_time 字段区分是否暂离。
+end note
+
+note bottom of Completed
+<b>【使用到期优先与边界原则】</b>
+1. 当“暂离超时”与“使用到期”同时满足时，
+   一律走“已完成”分支，不记暂离超时。
+2. now > 暂离上限才算超时，等于上限不算超时 (R-33)。
+3. 学生主动返回与定时任务结果一致，终态幂等。
+end note
+
+note right of Cancelled
+<b>【终态说明】</b>
+已取消、已完成、暂离超时释放、超时释放
+全部为终态；定时任务扫描直接跳过，
+不再发生任何状态迁移。
+end note
+
+' ================= 图例 =================
+legend right
+|= 颜色 |= 说明 |
+|<size:14><back:#AED6F1>　　　</back></size>| 流转中状态 |
+|<size:14><back:#D5F5E3>　　　</back></size>| 正常终态 |
+|<size:14><back:#FADBD8>　　　</back></size>| 违约/异常终态 |
+end legend
+
+@enduml
