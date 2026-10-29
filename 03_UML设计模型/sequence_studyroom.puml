@@ -51,6 +51,8 @@ else 校验通过
       【重要】仅作锁座与补偿关联标识
       不要求订单已落库
       (不违反“锁座失败不生成订单”)
+      严禁复用，若补偿释放后再锁座必报 1003
+      若为雪花ID，序列化须转 String 防精度丢失
     end note
 
     OrderSvc -> SeatSvc : 5. POST /api/seats/{seatId}/lock\n(orderId, startTime, durationHours)
@@ -98,21 +100,21 @@ else 校验通过
             activate SeatSvc
             SeatSvc --> OrderSvc : 9b. 释放成功
             deactivate SeatSvc
-            OrderSvc --> Frontend : 10a. 返回预约失败（不返回成功）\n(座位已补偿释放)
+            OrderSvc --> Frontend : 10a. 返回预约失败 (HTTP状态码 500)\n(座位已补偿释放)
 
         else 落库成功
             OrderSvc ->> NotifySvc : 9c. POST .../push\n(含 eventType, dedupKey)
             activate NotifySvc
-            note over OrderSvc, NotifySvc
+            note right of NotifySvc
               异步投递，不等待业务结果；
               仅接收 HTTP 回执，推送失败仅落日志，不回滚订单
               eventType: RESERVE_SUCCESS
               userId：当前预约用户ID（必填）
               dedupKey: RESERVE_SUCCESS:{orderId}
             end note
-            deactivate NotifySvc
 
             OrderSvc --> Frontend : 10b. 返回成功\n(orderId, status=待签到, startTime, endTime)
+            deactivate NotifySvc
             Frontend --> Student : 11. 提示“预约成功”
         end
     end
