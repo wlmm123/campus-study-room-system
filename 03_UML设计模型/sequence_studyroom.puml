@@ -1,0 +1,120 @@
+@startuml 校园自习室分布式预约管理系统_预约座位顺序图
+skinparam limitSize false
+skinparam dpi 200
+skinparam shadowing true
+skinparam linetype polyline
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 150
+
+' 配色方案
+skinparam participant {
+    BackgroundColor #FDFEFE
+    BorderColor #5D6D7E
+    FontSize 13
+}
+skinparam sequence {
+    ArrowColor #34495E
+    LifeLineBorderColor #5D6D7E
+    LifeLineBackgroundColor #F4F6F7
+    GroupBorderColor #2C3E50
+    GroupBackgroundColor #FDFEFE
+}
+skinparam note {
+    BackgroundColor #FEF9E7
+    BorderColor #F1C40F
+    FontSize 12
+}
+
+title 预约座位（FR-STU-05）顺序图\n依据契约 V3.0 4.2.1 / 3.3 / 4.3.4
+
+actor 学生 as Student
+participant "前端页面\n(Web)" as Frontend
+participant "订单流转子系统\n(8083)" as OrderSvc
+participant "座位资源子系统\n(8082)" as SeatSvc
+participant "监控通知子系统\n(8084)" as NotifySvc
+
+Student -> Frontend : 1. 选择座位与时段，点击预约
+Frontend -> OrderSvc : 2. POST /api/orders/reserve\n(携带 JWT)
+activate OrderSvc
+
+OrderSvc -> OrderSvc : 3. 参数与时段校验\n(时长档位、不跨天、不早于当前)
+note right: 校验 seatId, startTime, durationHours\n(档位 1-8，开始+时长≤次日00:00:00)
+
+alt 参数校验失败
+    OrderSvc --> Frontend : 返回 1002 (预约时间不在可选范围内/跨天)\n(HTTP状态码 200)
+    note right: 不调锁座，不生成订单
+
+else 校验通过
+
+    OrderSvc -> OrderSvc : 4. 预生成全局唯一 orderId
+    note right
+      【重要】仅作锁座与补偿关联标识
+      不要求订单已落库
+      (不违反“锁座失败不生成订单”)
+    end note
+
+    OrderSvc -> SeatSvc : 5. POST /api/seats/{seatId}/lock\n(orderId, startTime, durationHours)
+    note right: 请求头携带 X-Internal-Token（内部鉴权）
+    activate SeatSvc
+
+    SeatSvc -> SeatSvc : 6. 内部校验：座位非维护/停用、时段无冲突
+    note right
+      当前粗状态不作为拒绝依据；
+      同 orderId 重复请求做幂等，直接返回原有 occupancyId；
+      同 orderId 已释放或不同 seatId/时段 → 返回 1003
+    end note
+
+    alt 座位不可用 (维护/停用)
+        SeatSvc --> OrderSvc : 7a. 返回错误码 1006
+        deactivate SeatSvc
+        OrderSvc --> Frontend : 8a. 透传 1006 (HTTP状态码 200)，不生成订单
+
+    else 座位时段冲突(1001) / orderId幂等冲突(1003)
+        SeatSvc --> OrderSvc : 7b. 返回错误码 1001/1003
+        deactivate SeatSvc
+        OrderSvc --> Frontend : 8b. 透传错误码 (HTTP状态码 200)，不生成订单
+
+    else 网络无响应
+        OrderSvc -> OrderSvc : 7c. 锁座调用超时/无响应（未收到座位侧响应）
+        note right
+          座位子系统网络无响应，锁座结果未知；
+          不生成订单，不调用释放接口；返回业务码1007
+        end note
+        deactivate SeatSvc
+        OrderSvc --> Frontend : 8c. 返回业务错误码 1007\n(HTTP状态码 200)
+
+    else 锁座成功
+        SeatSvc --> OrderSvc : 7d. 返回成功 (含 occupancyId)
+        deactivate SeatSvc
+
+        note over OrderSvc: 8d. 根据 orderId 完成持久化，\n订单状态 = 待签到
+
+        alt 订单落库失败
+            OrderSvc -> SeatSvc : 9a. POST .../release\n(orderId, action: CANCEL)
+            note right: 请求头携带 X-Internal-Token（内部鉴权）
+            activate SeatSvc
+            note right: 补偿释放 (若网络无响应记录日志，\n不阻塞主流程)
+            SeatSvc --> OrderSvc : 9b. 释放成功
+            deactivate SeatSvc
+            OrderSvc --> Frontend : 10a. 返回预约失败（不返回成功）\n(座位已补偿释放)
+
+        else 落库成功
+            OrderSvc ->> NotifySvc : 9c. POST /api/internal/notify/push
+            activate NotifySvc
+            note over OrderSvc, NotifySvc
+              异步投递，不等待业务结果；
+              仅接收 HTTP 回执，推送失败仅落日志，不回滚订单
+              eventType: RESERVE_SUCCESS
+              userId：当前预约用户ID（必填）
+              dedupKey: RESERVE_SUCCESS:{orderId}
+            end note
+            deactivate NotifySvc
+
+            OrderSvc --> Frontend : 10b. 返回成功\n(orderId, status=待签到, startTime, endTime)
+            Frontend --> Student : 11. 提示“预约成功”
+        end
+    end
+end
+deactivate OrderSvc
+
+@enduml
