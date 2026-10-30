@@ -1,14 +1,15 @@
 -- ==========================================================
 -- 模块：订单流转子系统 (order_db) - 节点B
 -- 编写人：成员3
--- 版本：V1.1（根据成员2评审意见修订：补充公共字段）
+-- 版本：V1.2（根据成员2评审意见修订：统一字符集、初始数据幂等、补充配置项注释）
 -- 依据：E-R图、REST接口契约-v3、小组开发契约
 -- ==========================================================
 
 SET NAMES utf8mb4;
 
 -- 创建并切换数据库
-CREATE DATABASE IF NOT EXISTS `order_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+-- 【V1.2修改】排序规则 utf8mb4_0900_ai_ci → utf8mb4_general_ci（兼容MySQL5.7）
+CREATE DATABASE IF NOT EXISTS `order_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE `order_db`;
 
 -- ----------------------------
@@ -31,7 +32,7 @@ CREATE TABLE `order_info` (
   KEY `idx_user_id` (`user_id`),
   KEY `idx_seat_id` (`seat_id`),
   KEY `idx_status_end_time` (`status`,`end_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='预约订单表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='预约订单表';
 
 -- ----------------------------
 -- 2. 违约记录表 (VIOLATION)
@@ -50,7 +51,7 @@ CREATE TABLE `violation` (
   PRIMARY KEY (`id`),
   KEY `idx_order_id` (`order_id`),
   KEY `idx_user_id` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='违约记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='违约记录表';
 
 -- ----------------------------
 -- 3. 订单状态流转日志表 (ORDER_STATUS_LOG)
@@ -68,7 +69,7 @@ CREATE TABLE `order_status_log` (
   `reason` varchar(255) DEFAULT NULL COMMENT '变更原因',
   PRIMARY KEY (`id`),
   KEY `idx_order_id` (`order_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='订单状态流转日志表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='订单状态流转日志表';
 
 -- ----------------------------
 -- 4. 业务配置表 (BIZ_CONFIG)
@@ -81,14 +82,16 @@ CREATE TABLE `biz_config` (
   `description` varchar(255) DEFAULT NULL COMMENT '配置项中文说明，内部维护用',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_config_key` (`config_key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='业务配置表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='业务配置表';
 
 -- ----------------------------
 -- 5. 插入默认业务配置数据
+--    【V1.2修改】INSERT → INSERT IGNORE，防止脚本重复执行时 uk_config_key 冲突
+--    【V1.2修改】duration_options 说明补"逗号分隔字符串，应用层解析为数组返回"
 -- ----------------------------
-INSERT INTO `biz_config` (`config_key`, `config_value`, `description`) VALUES 
+INSERT IGNORE INTO `biz_config` (`config_key`, `config_value`, `description`) VALUES 
 ('checkin_deadline_minutes', '15', '签到截止时长（分钟）'),
 ('temp_leave_limit_minutes', '120', '暂离保留上限（分钟）'),
-('duration_options', '1,2,3,4,5,6,7,8', '可选时长档位（小时）'),
+('duration_options', '1,2,3,4,5,6,7,8', '可选时长档位（小时），逗号分隔字符串，应用层解析为数组返回'),
 ('scan_interval_seconds', '60', '定时扫描周期（秒）'),
 ('max_duration_hours', '8', '单次预约最大时长（小时）');
