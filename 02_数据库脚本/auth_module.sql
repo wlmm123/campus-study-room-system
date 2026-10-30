@@ -15,7 +15,7 @@ USE `auth_db`;
 CREATE TABLE `sys_user` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
   `username` VARCHAR(50) NOT NULL COMMENT '登录账号（学号），全局唯一',
-  `password` VARCHAR(100) NOT NULL COMMENT '加密密码（BCrypt）',
+  `password` VARCHAR(100) NOT NULL COMMENT '加密密码',
   `real_name` VARCHAR(50) DEFAULT NULL COMMENT '真实姓名',
   `status` TINYINT DEFAULT 1 COMMENT '账号状态: 1正常, 0禁用',
   `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
