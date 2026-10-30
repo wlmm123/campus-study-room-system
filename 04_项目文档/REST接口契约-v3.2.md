@@ -192,9 +192,9 @@ internal:
 ```
 
 - **业务规则**：  
-  （1）校验 `开始时间 + 时长 <= 预约开始日次日 00:00:00`。（等于次日 00:00:00 时，视为到当天结束，合法、不算跨天）。
-  （2）主判据为座位非维护/停用，且该时段无未释放占用记录；**当前粗状态不作为未来时段拒绝依据**。  
-  （3）无冲突则插入占用记录，返回成功；时段冲突返回错误码 `1001`；状态不可用（维护/停用）返回 `1006`。  
+  （1）时间格式统一为 yyyy-MM-dd HH:mm:ss，格式错误返回 HTTP 400。校验 开始时间 + 时长 <= 预约开始日次日 00:00:00（等于次日 00:00:00 时，视为到当天结束，合法、不算跨天）。
+  （2）主判据为座位非维护/停用（若座位当前状态为“维护”或“停用”，直接返回 `1006`），且该时段无未释放占用记录；**当前粗状态不作为未来时段拒绝依据**。（注：内部实现必须配合 `SELECT ... FOR UPDATE` 锁定座位行，防并发超卖）。  
+  （3）无冲突则插入占用记录，返回成功，**并将 `seat_info` 表中的座位状态同步更新为“已预约”**；时段冲突返回错误码 `1001`。
   （4）幂等性要求：同一 `orderId` 重复锁座必须幂等。若存在未释放占用记录，返回原 `occupancyId`；若已释放或同 `orderId` 不同 `seatId`/时段，返回业务错误码 `1003`（当前订单状态不允许此操作），不得返回 200、不得新增占用；重新预约必须使用新 `orderId`。订单子系统在 4.2.1(5) 补偿释放后，该 `orderId` 在座位侧视为已终结；若再次使用该 orderId 发起锁座返回 1003 属预期。
 
        （5）座位侧不校验 `durationOptions`，仅校验时间边界；档位合法性（属于 `BIZ_CONFIG.durationOptions` 且 ≤         `max_duration_hours`）由订单子系统 4.2.1 负责。
@@ -228,13 +228,27 @@ internal:
 }
 ```
 
-*(注：action 用于标识释放原因，如 CANCEL(取消)、TIMEOUT(超时)、FINISH(完成)，便于座位端做记录)*
+*(注：action 仅接收 CANCEL、TIMEOUT、FINISH，其他值返回 HTTP 400。)*
 
 - **说明**：若该座位下不存在任何未释放的占用记录，且非维护/停用，座位状态回“可用”。
 - **幂等性要求**：  
   （1）同一 `orderId` 重复释放，若占用记录存在且 `release_status=1`，返回 HTTP 200 + `code=200`，`message="座位已释放"`，`data.occupancyId` 返回原占用记录 ID；  
   （2）若 `orderId` 在座位侧从未存在占用记录，返回 HTTP 200 + `code=200` 空操作，`message="无待释放占用记录"`，`data=null`；  
   （3）释放成功后，若该座位无任何未释放占用记录且非维护/停用，座位状态回“可用”。
+
+**响应示例**：
+
+```json
+{
+  "code": 200,
+  "message": "释放成功",
+  "data": {
+    "occupancyId": 1001,
+    "seatId": 1,
+    "seatStatus": "可用" 
+  }
+}
+```
 
 ### 3.5 更新座位状态（供订单子系统内部调用）
 
@@ -656,7 +670,7 @@ internal:
 
 (4) 远程调用座位子系统锁座接口 `POST /api/seats/{seatId}/lock`；锁座返回 `1001/1003/1006` 错误时直接透传错误，不生成订单；网络层面无法获取座位子系统响应则返回业务错误码=1007（HTTP状态码200），不生成订单。
 
-(5) 锁座成功，尝试生成订单；若订单落库失败，调用座位释放接口 `POST /api/internal/seats/{seatId}/release`，action 传值 `CANCEL` 做补偿；若补偿释放也失败，记录补偿失败日志（含 `orderId`、`seatId`、失败原因、时间），由运维/开发按日志人工重试释放；本契约不承诺自动重试。最终向用户返回 HTTP 500，不返回成功。
+(5) 锁座成功，尝试生成订单；若订单落库失败，调用座位释放接口 `POST /api/internal/seats/{seatId}/release`，action 传值 `CANCEL` 做补偿；若补偿释放也失败，记录补偿失败日志（含 `orderId`、`seatId`、失败原因、时间），由运维/开发按日志人工重试释放；本契约不承诺自动重试。最终向用户返回 HTTP 500，响应体必须遵循 1.1 统一 JSON 格式，即 {"code": 500, "message": "服务器内部错误", "data": null}，不得返回原生异常堆栈。
 
 (6) 落库成功生成订单，订单状态为待签到；异步调用通知子系统消息推送接口 `POST /api/internal/notify/push`，`eventType` 传 `RESERVE_SUCCESS`，`dedupKey` 传 `RESERVE_SUCCESS:{orderId}` 推送预约成功消息，推送失败仅记录日志，不阻塞订单主流程。
 
@@ -889,7 +903,8 @@ internal:
   "message": "主动离开成功",
   "data": {
     "orderId": 10001,
-    "status": "已完成"
+    "status": "已完成",
+    "seatStatus": "可用"
   }
 }
 ```
@@ -1262,7 +1277,7 @@ internal:
 
 **业务规则**：
 
-1. `dedupKey` 唯一，重复推送返回原 `messageId` 且 `duplicated=true`，不重复入库；
+1. `dedupKey` 唯一，重复推送返回原 `messageId` 且 `duplicated=true`，不重复入库；当 dedupKey 已存在时：若原记录的 push_status = 'FAIL'，允许重新尝试推送并更新推送日志；若原记录已成功，直接返回原 messageId 且 duplicated=true，并忽略新传入的 title/content，防并发脏写。
 
 2. 推送失败只记录 `notify_push_log`，不向调用方抛异常；调用方按“推送失败不阻塞主流程”处理。推送失败时仍返回 HTTP 200 + `code=200`，`message="消息已入库，推送失败已记录"`，`data` 含 `messageId`、`duplicated=false`、`pushStatus="FAIL"`；调用方只记日志，不重试、不回滚。
 
