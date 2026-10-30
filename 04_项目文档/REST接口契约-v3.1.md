@@ -1,8 +1,8 @@
 # 校园自习室分布式预约管理系统 · REST接口契约
 
-- **版本**：V3.1（基线初稿，待评审冻结）
+- **版本**：V3.2（基线初稿，待评审冻结）
 - **编制人**：成员2（系统设计负责人）
-- **日期**：2026年10月29日
+- **日期**：2026年10月30日
 
 ## 1. 全局约定
 
@@ -95,11 +95,15 @@ internal:
 
 **ID 精度约定**：全局 `orderId` 若使用雪花算法生成 19 位 Long，后端返回前端时必须序列化为 String，防止前端 JS 精度丢失。
 
+本文档中 `orderId` 示例为简化数字，实际按本节约定序列化为 String 返回前端；请求体中的 `orderId` 可接收数字或字符串，服务端统一按 Long 解析。
+
 ## 2. 全局配置接口（供前端读取，由订单子系统8083提供）
 
 ### 2.1 获取业务配置
 
 - **路径**：`GET /api/config/business`
+
+- **鉴权**：用户接口，请求头携带 `Authorization: Bearer <JWT_Token>`。
 
 - **描述**：获取业务参数（如时长档位、签到截止时间等），用于前端渲染下拉框。前端从订单系统获取，座位和通知系统若需要阈值，通过内部接口调用订单系统获取。
 
@@ -227,7 +231,10 @@ internal:
 *(注：action 用于标识释放原因，如 CANCEL(取消)、TIMEOUT(超时)、FINISH(完成)，便于座位端做记录)*
 
 - **说明**：若该座位下不存在任何未释放的占用记录，且非维护/停用，座位状态回“可用”。
-- **幂等性要求**：按 `orderId` 重复释放必须幂等，返回成功或明确业务码。
+- **幂等性要求**：  
+  （1）同一 `orderId` 重复释放，若占用记录存在且 `release_status=1`，返回 HTTP 200 + `code=200`，`message="座位已释放"`，`data.occupancyId` 返回原占用记录 ID；  
+  （2）若 `orderId` 在座位侧从未存在占用记录，返回 HTTP 200 + `code=200` 空操作，`message="无待释放占用记录"`，`data=null`；  
+  （3）释放成功后，若该座位无任何未释放占用记录且非维护/停用，座位状态回“可用”。
 
 ### 3.5 更新座位状态（供订单子系统内部调用）
 
@@ -250,7 +257,10 @@ internal:
 
 - **业务规则**：校验本地必须存在 `orderId` 对应的未释放占用记录，且 `seatId` 一致；不满足或已释放返回 `1003`。若传入的 `status` 不是“已占用”或“暂离中”，返回 HTTP 400。
 
-- **幂等性要求**：按 `orderId` 重复更新必须幂等。
+- **幂等性要求**：  
+  （1）占用记录存在、`seatId` 一致且未释放：重复更新同一 `status` 返回 HTTP 200 + `code=200`；  
+  （2）占用记录不存在或已释放：返回业务错误码 `1003`；  
+  （3）`status` 不是“已占用”或“暂离中”：返回 HTTP 400。
 
 ### 3.6 管理员自习室与座位管理（供前端直接调用）
 
@@ -466,6 +476,10 @@ internal:
 }
 ```
 
+- **多角色返回规则**：若用户绑定多个角色，`role` 按 `ADMIN > STUDENT` 优先级返回；管理员接口拦截按 Token 是否包含 `ADMIN` 判断，不依赖单 `role` 字段。
+
+- **示例密码说明**：入参示例 `Password123!` 仅示意，实际以初始化脚本创建的账号密码为准，账号清单见《部署说明文档》。
+
 - **业务前置条件**：账号必须存在且状态正常（未被禁用）。账号或密码错误返回业务码 `2001`；账号被禁用返回业务码 `2002`。
 
 #### 4.1.3 获取当前登录用户信息
@@ -545,6 +559,8 @@ internal:
   "message": "操作成功",
   "data": {
     "total": 15,
+    "pageNum": 1,
+    "pageSize": 10,
     "list": [
       {
         "userId": 1001,
@@ -594,6 +610,8 @@ internal:
   （3）字段 `roleCode` 用于前端条件渲染（如仅允许分配 `STUDENT`/`ADMIN`），`roleId` 用于 4.1.4 分配角色接口入参；
   
   （4）该接口为只读接口，不修改任何数据；角色数据由 `init_nodeA.sql` 初始化（`sys_role` 表预置 `STUDENT`、`ADMIN` 两条记录）。
+  
+  （5）除上述角色外，初始化脚本还会预置默认学生账号与默认管理员账号（密码为 BCrypt 密文），具体账号清单见《部署说明文档》。
 
 - **错误返回示例**：
 
@@ -610,6 +628,8 @@ internal:
 **调用座位子系统接口通用说明**
 
 本子系统调用座位资源子系统 `lock / release / status` 接口均携带内部鉴权头`X-Internal-Token`；lock请求体为`{orderId, startTime, durationHours}`，release请求体为`{orderId, action}`，status请求体为`{status, orderId}`；座位合法业务错误进行透传，网络无响应返回1007（依赖契约V1.1新增）。
+
+本地落库失败兜底：4.2.2~4.2.6 中，若座位子系统接口调用成功、但订单子系统本地状态更新失败，接口返回 HTTP 500，`code=500`，`message="订单状态更新失败，已记录补偿日志"`；订单子系统记录补偿日志，由定时任务或人工按日志重试；不得向用户返回成功。座位侧已发生的状态变更由后续重试/补偿对齐。
 
 #### 4.2.1 创建预约下单
 
@@ -628,11 +648,11 @@ internal:
 
 - **业务规则**：
 
-(1)校验 `durationHours` 属于本地 `BIZ_CONFIG.durationOptions` 且 `durationHours ≤ max_duration_hours`（BIZ_CONFIG）；生产默认档位1‑8，测试环境可配置缩短。
+(1)校验 `durationHours` 属于本地 `BIZ_CONFIG.durationOptions` 且 `durationHours ≤ max_duration_hours`（BIZ_CONFIG）；`durationHours` 单位为整数小时，生产默认档位 1~8。测试环境通过 `BIZ_CONFIG.durationOptions` 缩短档位，但仍使用整数小时单位，配合缩短签到/暂离/扫描周期验证，不引入分钟单位字段。档位非法（不在 `durationOptions` 或 `> max_duration_hours`）返回 HTTP 400，`code=400`，`message="预约时长不在可选范围内"`；时间越界（规则(3)）才返回业务码 `1002`。
 (2)校验 `startTime` >= 当前系统时间；
 (3)校验 `startTime + durationHours <= 预约开始日次日 00:00:00`，不满足返回业务错误码 `1002`；
 (4)远程调用座位子系统锁座接口 `POST /api/seats/{seatId}/lock`；锁座返回 `1001/1003/1006` 错误时直接透传错误，不生成订单；网络层面无法获取座位子系统响应则返回业务错误码=1007（HTTP状态码200），不生成订单。
-(5)锁座成功，尝试生成订单；若订单落库失败，调用座位释放接口 `POST /api/internal/seats/{seatId}/release`，action传值 `CANCEL` 做补偿；若补偿释放也失败，记录日志交定时任务重试。最终向用户返回 HTTP 500，不返回成功。
+(5)锁座成功，尝试生成订单；若订单落库失败，调用座位释放接口 `POST /api/internal/seats/{seatId}/release`，action 传值 `CANCEL` 做补偿；若补偿释放也失败，记录补偿失败日志（含 `orderId`、`seatId`、失败原因、时间），由运维/开发按日志人工重试释放；本契约不承诺自动重试。最终向用户返回 HTTP 500，不返回成功。
 (6)落库成功生成订单，订单状态为待签到；异步调用通知子系统消息推送接口 `POST /api/internal/notify/push`，`eventType` 传 `RESERVE_SUCCESS`，`dedupKey` 传 `RESERVE_SUCCESS:{orderId}` 推送预约成功消息，推送失败仅记录日志，不阻塞订单主流程。
 
 - **响应示例**：
@@ -783,7 +803,7 @@ internal:
   先调用座位子系统release接口，action传值`FINISH`；座位子系统返回业务错误则直接透传code与message，本地不做变更；座位调用成功；订单转为已完成；清空`tempLeaveStartTime`；不生成违约记录；不推送消息；网络调用失败，本地不变更，返回业务错误码=1007（HTTP状态码200），定时任务补偿。
 
 - ② 如果当前时间 > 暂离开始时间+暂离保留上限 且 当前时间＜预约结束时间：  
-  先调用座位release接口，action传值`TIMEOUT`；座位子系统返回业务错误则直接透传code与message，本地不做变更；座位调用成功；订单转为暂离超时释放；生成违约记录（类型`暂离超时`）；清空`tempLeaveStartTime`；异步调用通知子系统接口 `POST /api/internal/notify/push`，`eventType` 传 `TEMP_LEAVE_TIMEOUT_RELEASE`，`dedupKey` 传 `TEMP_LEAVE_TIMEOUT_RELEASE:{orderId}`；推送失败仅记日志不阻塞；返回业务错误码`1004`；网络调用失败，本地不变更，返回业务错误码=1007（HTTP状态码200），定时任务补偿。
+  先调用座位release接口，action传值`TIMEOUT`；座位子系统返回业务错误则直接透传code与message，本地不做变更；座位调用成功；订单转为暂离超时释放；生成违约记录（类型`暂离超时`）；清空`tempLeaveStartTime`；异步调用通知子系统接口 `POST /api/internal/notify/push`，`eventType` 传 `TEMP_LEAVE_TIMEOUT_RELEASE`，`dedupKey` 传 `TEMP_LEAVE_TIMEOUT_RELEASE:{orderId}`；推送失败仅记日志不阻塞；返回业务错误码`1004`；网络调用失败，本地不变更，返回业务错误码=1007（HTTP状态码200），定时任务补偿。“HTTP 状态码 200，前端按提示处理，不做失败回滚”，与 1.2 呼应。
 
 - ③ 其余情况为正常返回：
   先调用座位status接口设置为“已占用”；座位子系统返回业务错误则直接透传code与message，本地不做变更；座位调用成功；清空`tempLeaveStartTime`；订单保持已签到；网络调用失败，本地不变更，返回业务错误码=1007（HTTP状态码200），定时任务补偿。
@@ -913,7 +933,7 @@ internal:
 - **描述**：查询单条订单完整详情。
 - **鉴权说明**：用户接口，请求头携带 `Authorization: Bearer <JWT_Token>`
 - **入参**：路径变量 `orderId`，无请求体
-- **业务规则**：校验订单属于当前登录用户；否则返回403无权限。
+- **业务规则**：校验订单属于当前登录用户；不属于或订单不存在，统一返回 HTTP 403 + `code=403`，`message="无权访问该订单"`，不区分“不存在”与“无权限”，避免泄露订单存在性。
 - **响应示例**：
 
 ```json
@@ -1019,7 +1039,7 @@ internal:
 - **鉴权说明**：内部接口，请求头必须携带 `X-Internal-Token`，取值与服务配置项 `internal.token` 保持一致；联调参考示例值见 1.3，禁止在业务代码硬编码 token。前端禁止访问。鉴权失败返回业务错误码 `1005`。
 - **入参**：无请求体
 - **业务规则**：读取本地BIZ_CONFIG表配置数据返回。
-- **备注**：`max_duration_hours` 仅后端内部校验用、不在契约 4.2.11 对外返回。
+- **备注**：`durationOptions` 在 `biz_config` 中存为逗号分隔字符串（如 `1,2,3,4,5,6,7,8`），订单子系统读取后解析为整型数组返回；`max_duration_hours` 仅后端内部校验用、不在契约 4.2.11 对外返回。
 - **响应示例**：
 
 ```json
@@ -1077,6 +1097,8 @@ internal:
   }
 }
 ```
+
+注：“响应字段为驼峰，与数据库下划线字段一一对应”
 
 ### 4.3 监控通知子系统（8084）- 负责人：成员4
 
@@ -1224,14 +1246,22 @@ internal:
 | `USE_EXPIRED_COMPLETE`       | 使用到期完成（订单 4.2.12①，必推，推送失败仅记录日志，不阻塞主流程） |
 | `SYSTEM`                     | 系统消息（预留）                               |
 
-- **业务规则**：
-  
-  1. `dedupKey` 唯一，重复推送返回原 `messageId` 且 `duplicated=true`，不重复入库；
-  
-  2. 推送失败只记录 `notify_push_log`，不向调用方抛异常；调用方按“推送失败不阻塞主流程”处理；
-  
-  3. 参数缺失/格式错误返回 HTTP 400；内部 Token 错误返回业务码 `1005`。
+**订单侧调用报文模板（订单→通知）**：
 
+| eventType                    | userId    | orderId | title  | content         | bizTime | dedupKey                               |
+| ---------------------------- | --------- | ------- | ------ | --------------- | ------- | -------------------------------------- |
+| `RESERVE_SUCCESS`            | 订单.userId | orderId | 预约成功   | 您已成功预约座位，请按时签到  | 下单时间    | `RESERVE_SUCCESS:{orderId}`            |
+| `SIGN_IN_TIMEOUT_RELEASE`    | 订单.userId | orderId | 预约超时释放 | 您预约的座位因超时未签到已释放 | 释放时间    | `SIGN_IN_TIMEOUT_RELEASE:{orderId}`    |
+| `TEMP_LEAVE_TIMEOUT_RELEASE` | 订单.userId | orderId | 暂离超时释放 | 您暂离超过规定时限，座位已释放 | 释放时间    | `TEMP_LEAVE_TIMEOUT_RELEASE:{orderId}` |
+| `USE_EXPIRED_COMPLETE`       | 订单.userId | orderId | 使用到期完成 | 您的预约已到期，座位已释放   | 到期时间    | `USE_EXPIRED_COMPLETE:{orderId}`       |
+
+**业务规则**：
+
+1. `dedupKey` 唯一，重复推送返回原 `messageId` 且 `duplicated=true`，不重复入库；
+
+2. 推送失败只记录 `notify_push_log`，不向调用方抛异常；调用方按“推送失败不阻塞主流程”处理。推送失败时仍返回 HTTP 200 + `code=200`，`message="消息已入库，推送失败已记录"`，`data` 含 `messageId`、`duplicated=false`、`pushStatus="FAIL"`；调用方只记日志，不重试、不回滚。
+
+3. 参数缺失/格式错误返回 HTTP 400；内部 Token 错误返回业务码 `1005`。
 - **响应示例**：
 
 ```json
