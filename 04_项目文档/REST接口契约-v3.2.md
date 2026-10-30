@@ -648,12 +648,17 @@ internal:
 
 - **业务规则**：
 
-(1)校验 `durationHours` 属于本地 `BIZ_CONFIG.durationOptions` 且 `durationHours ≤ max_duration_hours`（BIZ_CONFIG）；`durationHours` 单位为整数小时，生产默认档位 1~8。测试环境通过 `BIZ_CONFIG.durationOptions` 缩短档位，但仍使用整数小时单位，配合缩短签到/暂离/扫描周期验证，不引入分钟单位字段。档位非法（不在 `durationOptions` 或 `> max_duration_hours`）返回 HTTP 400，`code=400`，`message="预约时长不在可选范围内"`；时间越界（规则(3)）才返回业务码 `1002`。
-(2)校验 `startTime` >= 当前系统时间；
-(3)校验 `startTime + durationHours <= 预约开始日次日 00:00:00`，不满足返回业务错误码 `1002`；
-(4)远程调用座位子系统锁座接口 `POST /api/seats/{seatId}/lock`；锁座返回 `1001/1003/1006` 错误时直接透传错误，不生成订单；网络层面无法获取座位子系统响应则返回业务错误码=1007（HTTP状态码200），不生成订单。
-(5)锁座成功，尝试生成订单；若订单落库失败，调用座位释放接口 `POST /api/internal/seats/{seatId}/release`，action 传值 `CANCEL` 做补偿；若补偿释放也失败，记录补偿失败日志（含 `orderId`、`seatId`、失败原因、时间），由运维/开发按日志人工重试释放；本契约不承诺自动重试。最终向用户返回 HTTP 500，不返回成功。
-(6)落库成功生成订单，订单状态为待签到；异步调用通知子系统消息推送接口 `POST /api/internal/notify/push`，`eventType` 传 `RESERVE_SUCCESS`，`dedupKey` 传 `RESERVE_SUCCESS:{orderId}` 推送预约成功消息，推送失败仅记录日志，不阻塞订单主流程。
+(1) 校验 `durationHours` 属于本地 `BIZ_CONFIG.durationOptions` 且 `durationHours ≤ max_duration_hours`（BIZ_CONFIG）；`durationHours` 单位为整数小时，生产默认档位 1~8。测试环境通过 `BIZ_CONFIG.durationOptions` 缩短档位，但仍使用整数小时单位，配合缩短签到/暂离/扫描周期验证，不引入分钟单位字段。档位非法（不在 `durationOptions` 或 `> max_duration_hours`）返回 HTTP 400，`code=400`，`message="预约时长不在可选范围内"`；时间越界（规则(3)）才返回业务码 `1002`。
+
+(2) 校验 `startTime` >= 当前系统时间；
+
+(3) 校验 `startTime + durationHours <= 预约开始日次日 00:00:00`，不满足返回业务错误码 `1002`；
+
+(4) 远程调用座位子系统锁座接口 `POST /api/seats/{seatId}/lock`；锁座返回 `1001/1003/1006` 错误时直接透传错误，不生成订单；网络层面无法获取座位子系统响应则返回业务错误码=1007（HTTP状态码200），不生成订单。
+
+(5) 锁座成功，尝试生成订单；若订单落库失败，调用座位释放接口 `POST /api/internal/seats/{seatId}/release`，action 传值 `CANCEL` 做补偿；若补偿释放也失败，记录补偿失败日志（含 `orderId`、`seatId`、失败原因、时间），由运维/开发按日志人工重试释放；本契约不承诺自动重试。最终向用户返回 HTTP 500，不返回成功。
+
+(6) 落库成功生成订单，订单状态为待签到；异步调用通知子系统消息推送接口 `POST /api/internal/notify/push`，`eventType` 传 `RESERVE_SUCCESS`，`dedupKey` 传 `RESERVE_SUCCESS:{orderId}` 推送预约成功消息，推送失败仅记录日志，不阻塞订单主流程。
 
 - **响应示例**：
 
@@ -1024,7 +1029,7 @@ internal:
         "orderId":10002,
         "userId":1003,
         "type":"暂离超时",
-        "violateTime":"2026-10-25 15:40:00",
+        "violationTime":"2026-10-25 15:40:00",
         "reason":"暂离超过暂离保留上限未返回"
       }
     ]
