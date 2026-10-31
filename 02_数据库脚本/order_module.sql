@@ -94,4 +94,5 @@ INSERT IGNORE INTO `biz_config` (`config_key`, `config_value`, `description`) VA
 ('temp_leave_limit_minutes', '120', '暂离保留上限（分钟）'),
 ('duration_options', '1,2,3,4,5,6,7,8', '可选时长档位（小时），逗号分隔字符串，应用层解析为数组返回'),
 ('scan_interval_seconds', '60', '定时扫描周期（秒）'),
-('max_duration_hours', '8', '单次预约最大时长（小时）');
+('max_duration_hours', '8', '单次预约最大时长（小时）'),
+('duration_unit_minutes', '60', '档位单位（分钟）');
