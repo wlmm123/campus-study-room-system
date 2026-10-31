@@ -77,7 +77,7 @@ CREATE TABLE `order_status_log` (
 DROP TABLE IF EXISTS `biz_config`;
 CREATE TABLE `biz_config` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `config_key` varchar(100) NOT NULL COMMENT '配置键（如:checkin_deadline_minutes）',
+  `config_key` varchar(100) NOT NULL COMMENT '配置键（如:sign_in_deadline_minutes）',
   `config_value` varchar(255) NOT NULL COMMENT '配置值',
   `description` varchar(255) DEFAULT NULL COMMENT '配置项中文说明，内部维护用',
   PRIMARY KEY (`id`),
@@ -90,7 +90,7 @@ CREATE TABLE `biz_config` (
 --    【V1.2修改】duration_options 说明补"逗号分隔字符串，应用层解析为数组返回"
 -- ----------------------------
 INSERT IGNORE INTO `biz_config` (`config_key`, `config_value`, `description`) VALUES 
-('checkin_deadline_minutes', '15', '签到截止时长（分钟）'),
+('sign_in_deadline_minutes', '15', '签到截止时长（分钟）'),
 ('temp_leave_limit_minutes', '120', '暂离保留上限（分钟）'),
 ('duration_options', '1,2,3,4,5,6,7,8', '可选时长档位（小时），逗号分隔字符串，应用层解析为数组返回'),
 ('scan_interval_seconds', '60', '定时扫描周期（秒）'),
