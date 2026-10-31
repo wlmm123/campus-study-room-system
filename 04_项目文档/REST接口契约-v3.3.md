@@ -1,8 +1,8 @@
 # 校园自习室分布式预约管理系统 · REST接口契约
 
-- **版本**：V3.2（基线初稿，待评审冻结）
+- **版本**：V3.3（基线初稿，待评审冻结）
 - **编制人**：成员2（系统设计负责人）
-- **日期**：2026年10月30日
+- **日期**：2026年10月31日
 
 ## 1. 全局约定
 
@@ -71,6 +71,12 @@
 - **内部 Token 校验方式**：本项目为 4 个独立 SpringBoot 工程，不存在统一网关。凡契约标注为内部接口的路径，由**各服务自身拦截器**统一校验：请求头 `X-Internal-Token` 必须与配置值一致，否则拒绝；校验失败返回业务码 `1005`。8081 由成员1落地，8082 由成员2落地，8083 由成员3落地，8084 由成员4落地。
 
 - **跨域**：所有 Controller 必须加 `@CrossOrigin`。
+
+- **JWT 签名密钥（四服务共享）**：四个子系统统一使用同一签名密钥，配置项 jwt.secret，从外置配置读取。任一服务变更必须同步，否则统一返回 401。
+  
+  JWT Claims 约定：sub = userId（字符串形式的 Long）；userId = 同上；roles = 角色数组（如 ["STUDENT"]）；role = 主角色；exp = 过期时间。
+  
+  校验方式：8082/8083/8084 本地验签，不回调 8081；管理员接口判定 roles 数组是否包含 ADMIN。
 
 ### 1.4 跨节点服务地址配置规范（严禁硬编码）
 
@@ -198,6 +204,8 @@ internal:
   （4）幂等性要求：同一 `orderId` 重复锁座必须幂等。若存在未释放占用记录，返回原 `occupancyId`；若已释放或同 `orderId` 不同 `seatId`/时段，返回业务错误码 `1003`（当前订单状态不允许此操作），不得返回 200、不得新增占用；重新预约必须使用新 `orderId`。订单子系统在 4.2.1(5) 补偿释放后，该 `orderId` 在座位侧视为已终结；若再次使用该 orderId 发起锁座返回 1003 属预期。
 
        （5）座位侧不校验 `durationOptions`，仅校验时间边界；档位合法性（属于 `BIZ_CONFIG.durationOptions` 且 ≤         `max_duration_hours`）由订单子系统 4.2.1 负责。
+
+（6）锁座成功后的座位粗状态更新规则：仅当 `seat_info.status = '可用'` 时，将座位状态更新为 `已预约`；若当前状态为 `已占用` 或 `暂离中`，**保持原状态不变**，不得覆盖。`维护/停用` 已在规则 (2) 拒绝。
 
 - **响应示例**：
 
@@ -643,7 +651,9 @@ internal:
 
 本子系统调用座位资源子系统 `lock / release / status` 接口均携带内部鉴权头`X-Internal-Token`；lock请求体为`{orderId, startTime, durationHours}`，release请求体为`{orderId, action}`，status请求体为`{status, orderId}`；座位合法业务错误进行透传，网络无响应返回1007（依赖契约V1.1新增）。
 
-本地落库失败兜底：4.2.2~4.2.6 中，若座位子系统接口调用成功、但订单子系统本地状态更新失败，接口返回 HTTP 500，`code=500`，`message="订单状态更新失败，已记录补偿日志"`；订单子系统记录补偿日志，由定时任务或人工按日志重试；不得向用户返回成功。座位侧已发生的状态变更由后续重试/补偿对齐。
+**本地落库失败兜底**：4.2.2~4.2.6 中，若座位接口成功、但订单本地更新失败，接口返回 HTTP 500。订单子系统记录补偿日志，**本契约不承诺自动重试**。一致性由 **用户重复提交（各接口幂等）** 或 **人工按日志处理** 收敛。已知副作用：用户不重试则可能被 4.2.12 判为超时释放并记违约，前端收到 500 应提示“操作未完成，请重试”。
+
+**状态流转日志（强制）**：以下状态变更必须在同一本地事务内写入 `order_status_log`（含 from、to、operator_type）：4.2.1创建、4.2.2签到、4.2.3取消、4.2.5①、4.2.5②、4.2.6主动离开、4.2.12①②③。4.2.4暂离记 `from_status=to_status=已签到`。
 
 #### 4.2.1 创建预约下单
 
@@ -662,11 +672,11 @@ internal:
 
 - **业务规则**：
 
-(1) 校验 `durationHours` 属于本地 `BIZ_CONFIG.durationOptions` 且 `durationHours ≤ max_duration_hours`（BIZ_CONFIG）；`durationHours` 单位为整数小时，生产默认档位 1~8。测试环境通过 `BIZ_CONFIG.durationOptions` 缩短档位，但仍使用整数小时单位，配合缩短签到/暂离/扫描周期验证，不引入分钟单位字段。档位非法（不在 `durationOptions` 或 `> max_duration_hours`）返回 HTTP 400，`code=400`，`message="预约时长不在可选范围内"`；时间越界（规则(3)）才返回业务码 `1002`。
+(1) 校验 `durationHours` 属于本地 `BIZ_CONFIG.duration_options` 且 `durationHours ≤ max_duration_hours`；`durationHours` 表示**时长档位数**，实际时长 = `durationHours × duration_unit_minutes`（`BIZ_CONFIG.duration_unit_minutes`，生产 `60`，测试 `1`）。档位非法返回 HTTP 400。
 
 (2) 校验 `startTime` >= 当前系统时间；
 
-(3) 校验 `startTime + durationHours <= 预约开始日次日 00:00:00`，不满足返回业务错误码 `1002`；
+(3) 校验 startTime + durationHours × duration_unit_minutes <= 预约开始日次日 00:00:00，不满足返回业务错误码 1002；
 
 (4) 远程调用座位子系统锁座接口 `POST /api/seats/{seatId}/lock`；锁座返回 `1001/1003/1006` 错误时直接透传错误，不生成订单；网络层面无法获取座位子系统响应则返回业务错误码=1007（HTTP状态码200），不生成订单。
 
