@@ -66,7 +66,7 @@ else 校验通过
       若为雪花ID，序列化须转 String 防精度丢失
     end note
 
-    OrderSvc -> SeatSvc : 5. POST /api/seats/{seatId}/lock\n(orderId, startTime, durationHours)
+    OrderSvc -> SeatSvc : 5. POST /api/seats/{seatId}/lock\n(orderId, startTime, endTime, durationHours)
     note right: 请求头携带 X-Internal-Token（内部鉴权）
     activate SeatSvc
 
