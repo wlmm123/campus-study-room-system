@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS `order_status_log` (
   `order_id` bigint NOT NULL COMMENT '逻辑外键：订单ID',
   `from_status` varchar(20) DEFAULT NULL COMMENT '原状态；订单首次创建初始流转记录时为NULL',
   `to_status` varchar(20) NOT NULL COMMENT '新状态',
-  `operator_type` varchar(20) NOT NULL COMMENT '操作来源（STUDENT=学生手动操作, SYSTEM=定时任务系统触发）',
+  `operator_type` varchar(20) NOT NULL COMMENT '操作来源（STUDENT=学生本人操作, ADMIN=管理员操作, SYSTEM=定时任务系统触发）',
   `transition_time` datetime NOT NULL COMMENT '业务流转时间（即日志创建时间）',
   `reason` varchar(255) DEFAULT NULL COMMENT '变更原因',
   PRIMARY KEY (`id`),
@@ -69,9 +69,9 @@ CREATE TABLE IF NOT EXISTS `biz_config` (
 INSERT IGNORE INTO `biz_config` (`config_key`, `config_value`, `description`) VALUES 
 ('sign_in_deadline_minutes', '15', '签到截止时长（分钟）'),
 ('temp_leave_limit_minutes', '120', '暂离保留上限（分钟）'),
-('duration_options', '1,2,3,4,5,6,7,8', '可选时长档位（小时），逗号分隔字符串，应用层解析为数组返回'),
+('duration_options', '1,2,3,4,5,6,7,8', '可选时长档位值列表，逗号分隔字符串；实际时长=档位值×duration_unit_minutes，应用层解析为数组返回'),
 ('scan_interval_seconds', '60', '定时扫描周期（秒）'),
-('max_duration_hours', '8', '单次预约最大时长（小时）'),
+('max_duration_hours', '8', '单次预约最大档位值；实际最大时长=该值×duration_unit_minutes'),
 ('duration_unit_minutes', '60', '档位单位（分钟）');
 
 
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS `notify_push_log` (
   `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '推送日志ID',
   `message_id`  BIGINT       NOT NULL                COMMENT '消息ID（逻辑关联 notify_message.id，不建外键）',
   `push_status` VARCHAR(16)  NOT NULL                COMMENT '推送状态：SUCCESS/FAIL',
-  `retry_count` INT          NOT NULL DEFAULT 0      COMMENT '重试次数',
+  `retry_count` INT          NOT NULL DEFAULT 0      COMMENT '重试次数（当前推送策略为不重试/不补推，该字段恒为 0，仅保留以兼容表结构）',
   `error_msg`   VARCHAR(500) NULL     DEFAULT NULL   COMMENT '失败原因',
   `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
