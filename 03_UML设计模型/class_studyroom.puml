@@ -1,10 +1,14 @@
 @startuml 校园自习室分布式预约管理系统_实体类图
+' ================= 核心引擎设置 =================
 skinparam limitSize false
 skinparam dpi 200
 skinparam classAttributeIconSize 0
 skinparam shadowing true
 
-' 【关键】使用 polyline（折线）而不是纯粹的 ortho，可以避免长线乱绕
+' 【防截断魔法1】强制缩小整体比例，留出充足边界
+scale 0.85
+
+' 保持折线
 skinparam linetype polyline
 skinparam nodesep 40
 skinparam ranksep 90
@@ -58,7 +62,7 @@ package "身份权限子系统 (auth_db)" as auth_db {
     sys_user -[hidden]down- sys_user_role
 }
 
-' ================= 2. 订单流转子系统 (order_db) - 枢纽中心 =================
+' ================= 2. 订单流转子系统 (order_db) =================
 package "订单流转子系统 (order_db)" as order_db {
     together {
         class biz_config {
@@ -197,14 +201,20 @@ package "监控通知子系统 (notify_db)" as notify_db {
 }
 
 ' =========================================================
-' 核心排版：三列布局，紧凑居中
+' 【终极排版魔法】绝对位置锁定，防乱飞、防截断
 ' =========================================================
+' 布局：左（身份）、中（订单）、右（座位），下方（通知）
 auth_db -[hidden]right- order_db
 order_db -[hidden]right- room_seat_db
-order_db -[hidden]right- notify_db
 
-' 将右侧的座位和通知上下分开
-room_seat_db -[hidden]down- notify_db
+' 将通知系统死死压在订单系统的下方
+order_db -[hidden]down- notify_db
+
+' 利用最底部的表强行撑开画布底部，不再使用错误包名
+sys_user_role -[hidden]down- notify_push_log
+
+' 防止整体向左上角倾斜导致右边被切
+room_seat_db -[hidden]right- notify_db
 
 ' =========================================================
 ' 业务连线
@@ -230,12 +240,13 @@ sys_user "1" ..> "0..*" violation : 逻辑外键(user_id)
 seat_info "1" ..> "0..*" order_info : 逻辑外键(seat_id)
 order_info "1" ..> "0..1" seat_occupancy : 逻辑外键(order_id)
 
-' 4. 中间(订单) 指向 右侧下(通知)
+' 4. 中间(订单) 指向 下方(通知)
 order_info "1" ..> "0..*" notify_message : 逻辑外键(order_id)
-notify_task_log "0..*" ..> "1" order_info : 逻辑调度\n触发批量超时处理(非外键)
-biz_config "1" ..> "0..*" notify_task_log : 逻辑依赖\n通知读取订单配置(非外键)
 
-' 5. 左侧(身份) 跨越连接 右侧下(通知)
+' 【防乱飞】直接指定从 order_info 的下方连向 notify_task_log 的上方
+order_info::is_deleted "1" ..down.> "0..*" notify_task_log::trigger_type : 逻辑调度\n触发批量超时处理(非外键)
+
+' 5. 左侧(身份) 跨越连接 下方(通知)
 sys_user "1" ..> "0..*" notify_message : 逻辑外键(user_id)
 
 @enduml
