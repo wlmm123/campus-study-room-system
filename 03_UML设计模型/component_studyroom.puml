@@ -56,7 +56,8 @@ frontend ..> notify : <<REST-HTTP>>\n消息查看、已读操作
 ' ========== 后端跨服务调用（内部接口调用链路） ==========
 order ..> seat : <<REST-HTTP>>\n锁座、释放座位、同步状态
 order ..> notify : <<REST-HTTP>>\n消息落库与异步推送
-notify ..> order : <<REST-HTTP>>\n超时扫描触发、读取业务阈值
+' 【已修复】删除了“读取业务阈值”，改为准确描述 4.2.12
+notify ..> order : <<REST-HTTP>>\n触发超时扫描 (4.2.12)
 
 legend bottom
 |=标记|=说明|
