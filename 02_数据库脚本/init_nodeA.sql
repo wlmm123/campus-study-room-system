@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS `seat_occupancy` (
   `start_time` DATETIME NOT NULL COMMENT '占用开始时间',
   `end_time` DATETIME NOT NULL COMMENT '占用结束时间',
   `release_status` TINYINT DEFAULT 0 COMMENT '逻辑释放状态: 0未释放(锁定中), 1已释放',
+  `checkin_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '该订单的人是否已到达: 0未到, 1已到(签到/暂离/返回时由3.5置1)',
   `release_time` DATETIME DEFAULT NULL COMMENT '释放时间',
   `action` VARCHAR(20) DEFAULT NULL COMMENT '释放原因(CANCEL/TIMEOUT/FINISH)',
   `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

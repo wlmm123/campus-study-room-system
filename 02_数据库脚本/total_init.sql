@@ -4,6 +4,8 @@
 -- 双节点请分别使用 init_nodeA.sql 和 init_nodeB.sql。
 -- ==========================================================
 
+SET NAMES utf8mb4;
+
 -- 模块1：身份权限子系统
 -- ----------------------------------------------------------
 CREATE DATABASE IF NOT EXISTS `auth_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
@@ -88,6 +90,7 @@ CREATE TABLE IF NOT EXISTS `seat_occupancy` (
   `start_time` DATETIME NOT NULL COMMENT '占用开始时间',
   `end_time` DATETIME NOT NULL COMMENT '占用结束时间',
   `release_status` TINYINT DEFAULT 0 COMMENT '逻辑释放状态: 0未释放, 1已释放',
+  `checkin_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '该订单的人是否已到达: 0未到, 1已到(签到/暂离/返回时由3.5置1)',
   `release_time` DATETIME DEFAULT NULL COMMENT '释放时间',
   `action` VARCHAR(20) DEFAULT NULL COMMENT '释放原因(CANCEL/TIMEOUT/FINISH)',
   `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -144,7 +147,7 @@ CREATE TABLE IF NOT EXISTS `order_status_log` (
   `order_id` bigint NOT NULL COMMENT '订单ID',
   `from_status` varchar(20) DEFAULT NULL COMMENT '原状态',
   `to_status` varchar(20) NOT NULL COMMENT '新状态',
-  `operator_type` varchar(20) NOT NULL COMMENT '操作来源',
+  `operator_type` varchar(20) NOT NULL COMMENT '操作来源（STUDENT=学生本人操作, ADMIN=管理员操作, SYSTEM=定时任务系统触发）',
   `transition_time` datetime NOT NULL COMMENT '业务流转时间',
   `reason` varchar(255) DEFAULT NULL COMMENT '变更原因',
   PRIMARY KEY (`id`),
@@ -161,7 +164,12 @@ CREATE TABLE IF NOT EXISTS `biz_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='业务配置表';
 
 INSERT IGNORE INTO `biz_config` (`config_key`, `config_value`, `description`) VALUES 
-('sign_in_deadline_minutes', '15', '签到截止时长（分钟）'), ('temp_leave_limit_minutes', '120', '暂离保留上限（分钟）'), ('duration_options', '1,2,3,4,5,6,7,8', '时长档位'), ('scan_interval_seconds', '60', '定时扫描周期'), ('max_duration_hours', '8', '最大时长'), ('duration_unit_minutes', '60', '档位单位');
+('sign_in_deadline_minutes', '15', '签到截止时长（分钟）'),
+('temp_leave_limit_minutes', '120', '暂离保留上限（分钟）'),
+('duration_options', '1,2,3,4,5,6,7,8', '可选时长档位值列表，逗号分隔字符串；实际时长=档位值×duration_unit_minutes，应用层解析为数组返回'),
+('scan_interval_seconds', '60', '定时扫描周期（秒）'),
+('max_duration_hours', '8', '单次预约最大档位值；实际最大时长=该值×duration_unit_minutes'),
+('duration_unit_minutes', '60', '档位单位（分钟）');
 
 -- 模块4：监控通知子系统
 -- ----------------------------------------------------------
@@ -192,7 +200,7 @@ CREATE TABLE IF NOT EXISTS `notify_push_log` (
   `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '推送日志ID',
   `message_id`  BIGINT       NOT NULL                COMMENT '消息ID',
   `push_status` VARCHAR(16)  NOT NULL                COMMENT '推送状态',
-  `retry_count` INT          NOT NULL DEFAULT 0      COMMENT '重试次数',
+  `retry_count` INT          NOT NULL DEFAULT 0      COMMENT '重试次数（当前推送策略为不重试/不补推，该字段恒为 0，仅保留以兼容表结构）',
   `error_msg`   VARCHAR(500) NULL     DEFAULT NULL   COMMENT '失败原因',
   `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
