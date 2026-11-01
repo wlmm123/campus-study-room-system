@@ -1,10 +1,17 @@
+-- ==========================================================
+-- 校园自习室分布式预约管理系统 - 监控通知子系统独立脚本
+-- 负责人：成员4
+-- 注意：已去除 DROP TABLE 语句，全部采用 CREATE TABLE IF NOT EXISTS，防止重复执行误清空数据。
+-- ==========================================================
+
+SET NAMES utf8mb4;
+
 -- 1. 创建并切换数据库
-CREATE DATABASE IF NOT EXISTS notify_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-USE notify_db;
+CREATE DATABASE IF NOT EXISTS `notify_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `notify_db`;
 
 -- 2. 消息主体表
-DROP TABLE IF EXISTS `notify_message`;
-CREATE TABLE `notify_message` (
+CREATE TABLE IF NOT EXISTS `notify_message` (
   `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '消息ID',
   `user_id`     BIGINT       NOT NULL                COMMENT '接收用户ID（逻辑关联 auth_db 用户，不建外键）',
   `order_id`    BIGINT       NULL     DEFAULT NULL   COMMENT '关联订单ID（逻辑关联 order_db，系统消息可为空）',
@@ -24,13 +31,12 @@ CREATE TABLE `notify_message` (
   KEY `idx_order_id` (`order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='通知消息主体表';
 
--- 3. 消息推送日志表（日志表暂不加 is_deleted，但已有 update_time）
-DROP TABLE IF EXISTS `notify_push_log`;
-CREATE TABLE `notify_push_log` (
+-- 3. 消息推送日志表
+CREATE TABLE IF NOT EXISTS `notify_push_log` (
   `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '推送日志ID',
   `message_id`  BIGINT       NOT NULL                COMMENT '消息ID（逻辑关联 notify_message.id，不建外键）',
   `push_status` VARCHAR(16)  NOT NULL                COMMENT '推送状态：SUCCESS/FAIL',
-  `retry_count` INT          NOT NULL DEFAULT 0      COMMENT '重试次数',
+  `retry_count` INT          NOT NULL DEFAULT 0      COMMENT '重试次数（当前推送策略为不重试/不补推，该字段恒为 0，仅保留以兼容表结构）',
   `error_msg`   VARCHAR(500) NULL     DEFAULT NULL   COMMENT '失败原因',
   `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -40,8 +46,7 @@ CREATE TABLE `notify_push_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='消息推送日志表';
 
 -- 4. 定时任务执行日志表
-DROP TABLE IF EXISTS `notify_task_log`;
-CREATE TABLE `notify_task_log` (
+CREATE TABLE IF NOT EXISTS `notify_task_log` (
   `id`                        BIGINT   NOT NULL AUTO_INCREMENT COMMENT '任务日志ID',
   `execute_time`              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '执行时间',
   `handle_count`              INT      NOT NULL DEFAULT 0 COMMENT '总处理数',
