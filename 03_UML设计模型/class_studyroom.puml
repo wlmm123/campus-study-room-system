@@ -137,6 +137,7 @@ package "座位资源子系统 (room_seat_db)" as room_seat_db {
             + start_time : datetime
             + end_time : datetime
             + release_status : tinyint
+            + checkin_flag : tinyint
             + release_time : datetime
             + action : varchar
             + create_time : datetime
