@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.campus.studyroom.auth.mapper.SysUserRoleMapper">
+
+    <resultMap id="UserRoleRowMap" type="com.campus.studyroom.auth.dto.UserRoleRow">
+        <result column="user_id" property="userId"/>
+        <result column="role_code" property="roleCode"/>
+    </resultMap>
+
+    <select id="selectRoleRowsByUserIds" resultMap="UserRoleRowMap">
+        SELECT ur.user_id, r.role_code
+        FROM sys_user_role ur
+                 INNER JOIN sys_role r ON r.id = ur.role_id
+        WHERE r.is_deleted = 0
+          AND ur.user_id IN
+        <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+            #{uid}
+        </foreach>
+        ORDER BY ur.user_id ASC, r.id ASC
+    </select>
+
+</mapper>
