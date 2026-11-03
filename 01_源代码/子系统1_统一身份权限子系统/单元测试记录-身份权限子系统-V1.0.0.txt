@@ -1,0 +1,50 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -----------------< com.campus.studyroom:auth-service >------------------
+[INFO] Building auth-service 1.0.0
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.2.0:resources (default-resources) @ auth-service ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Using 'UTF-8' encoding to copy filtered properties files.
+[INFO] Copying 1 resource
+[INFO] Copying 2 resources
+[INFO] 
+[INFO] --- compiler:3.10.1:compile (default-compile) @ auth-service ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- resources:3.2.0:testResources (default-testResources) @ auth-service ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Using 'UTF-8' encoding to copy filtered properties files.
+[INFO] skip non existing resourceDirectory E:\campus-study-room-system\01_源代码\子系统1_统一身份权限子系统\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.10.1:testCompile (default-testCompile) @ auth-service ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- surefire:2.22.2:test (default-test) @ auth-service ---
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.campus.studyroom.auth.security.JwtUtilTest
+10:56:12.517 [main] INFO com.campus.studyroom.auth.security.JwtUtil - JWT 签名密钥已加载（长度 61 字节），有效期 7200 秒
+10:56:13.034 [main] INFO com.campus.studyroom.auth.security.JwtUtil - JWT 签名密钥已加载（长度 61 字节），有效期 7200 秒
+10:56:13.042 [main] INFO com.campus.studyroom.auth.security.JwtUtil - JWT 签名密钥已加载（长度 61 字节），有效期 7200 秒
+10:56:13.042 [main] INFO com.campus.studyroom.auth.security.JwtUtil - JWT 签名密钥已加载（长度 44 字节），有效期 7200 秒
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.608 s - in com.campus.studyroom.auth.security.JwtUtilTest
+[INFO] Running com.campus.studyroom.auth.service.AuthServiceImplTest
+10:56:13.833 [main] INFO com.campus.studyroom.auth.service.impl.AuthServiceImpl - 注册成功: userId=10, username=20239999
+10:56:13.855 [main] INFO com.campus.studyroom.auth.service.impl.AuthServiceImpl - 登录成功: userId=1, roles=[STUDENT]
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.751 s - in com.campus.studyroom.auth.service.AuthServiceImplTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  5.632 s
+[INFO] Finished at: 2026-11-03T10:56:14+08:00
+[INFO] ------------------------------------------------------------------------
