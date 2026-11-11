@@ -1,0 +1,46 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: order-service
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 【说明】成员6部署在节点B（Ubuntu）时，如果数据库和8083在同一台机器，默认就用 127.0.0.1。
+    # 如果分离部署，可以通过环境变量 DB_HOST 覆盖。
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/order_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}  # 成员6需按需修改真实密码
+  jackson:
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
+
+mybatis-plus:
+  global-config:
+    db-config:
+      logic-delete-field: isDeleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  configuration:
+    map-underscore-to-camel-case: true
+
+# ==========================================
+# 以下为全局鉴权与跨节点调用配置
+# ==========================================
+
+jwt:
+  # 【强制】四端（8081/8082/8083/8084）必须完全一致。
+  # 联调/部署时，成员6直接填入群里统一下发的密钥。这里默认填好联调用的值。
+  secret: ${JWT_SECRET:CampusStudyRoom2026JwtSecret9f3a7c1e5b2d4a6f8e0c1b3d5a7e2f4c6}
+
+internal:
+  # 【强制】四端必须完全一致，否则内部接口报 1005。
+  token: ${INTERNAL_TOKEN:campus_studyroom_internal_2026_5d8e2f1a}
+
+remote:
+  connect-timeout-ms: 2000
+  read-timeout-ms: 5000
+  # 成员6部署时，请将 NODE_A_IP 替换为节点A的真实局域网 IP（例如 10.165.59.231）
+  seat-service-url: http://${NODE_A_IP:10.165.59.231}:8082
+  # 成员6部署时，请将 NODE_B_IP 替换为节点B的真实局域网 IP（例如 192.168.56.101）
+  notify-service-url: http://${NODE_B_IP:192.168.56.101}:8084
