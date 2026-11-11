@@ -1,0 +1,36 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: order-service
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 冒号后面就是默认值（本地测试用），外部传了就会覆盖
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/order_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+  jackson:
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
+
+mybatis-plus:
+  global-config:
+    db-config:
+      logic-delete-field: isDeleted 
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  configuration:
+    map-underscore-to-camel-case: true
+
+jwt:
+  secret: ${JWT_SECRET:CampusStudyRoom2026JwtSecret9f3a7c1e5b2d4a6f8e0c1b3d5a7e2f4c6}
+
+internal:
+  token: ${INTERNAL_TOKEN:campus_studyroom_internal_2026_5d8e2f1a}
+
+remote:
+  connect-timeout-ms: 2000
+  read-timeout-ms: 5000
+  seat-service-url: ${SEAT_SERVICE_URL:http://10.137.174.206:8082}
+  notify-service-url: ${NOTIFY_SERVICE_URL:http://10.137.174.249:8084}
