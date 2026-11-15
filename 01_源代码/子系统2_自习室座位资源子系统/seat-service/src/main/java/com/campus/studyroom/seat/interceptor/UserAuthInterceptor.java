@@ -20,6 +20,11 @@ public class UserAuthInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return reject(response, 401, "Token缺失或格式错误");
@@ -27,12 +32,10 @@ public class UserAuthInterceptor implements HandlerInterceptor {
 
         String token = authHeader.substring(7);
         try {
-            // 解析 JWT
             Claims claims = Jwts.parser().setSigningKey(jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8)).parseClaimsJws(token).getBody();
-            List<String> roles = (List<String>) claims.get("roles");
+            List<?> roles = (List<?>) claims.get("roles");
             Long userId = Long.valueOf(claims.get("userId").toString());
 
-            // 把 userId 存到 request 里，方便 Controller 取
             request.setAttribute("userId", userId);
             request.setAttribute("roles", roles);
 
@@ -44,7 +47,6 @@ public class UserAuthInterceptor implements HandlerInterceptor {
             }
             return true;
         } catch (Exception e) {
-            e.printStackTrace();
             return reject(response, 401, "Token 无效或已过期");
         }
     }

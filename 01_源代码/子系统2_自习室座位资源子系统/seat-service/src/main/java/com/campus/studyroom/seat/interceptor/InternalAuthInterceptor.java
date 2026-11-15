@@ -17,10 +17,16 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        // 【新增】放行浏览器的跨域预检请求 (OPTIONS)
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+
         String token = request.getHeader("X-Internal-Token");
         if (token != null && token.equals(internalToken)) {
             return true; // 放行
         }
+
         response.setStatus(401);
         response.setContentType("application/json;charset=UTF-8");
         Result<?> result = Result.error(1005, "内部服务鉴权失败");
