@@ -3,6 +3,7 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.studyroom.order.common.BizException;
 import com.campus.studyroom.order.common.ErrorCode;
@@ -346,10 +347,12 @@ public class OrderService {
                 return Result.error(code == null ? 500 : code, json.getStr("message"));
             }
             
-            order.setStatus("已完成");
-            order.setTempLeaveStartTime(null);
-            order.setFinishTime(now);
-            orderInfoMapper.updateById(order);
+            // 【修复：显式置 NULL，避免 updateById 忽略 null 字段】
+            orderInfoMapper.update(null, new LambdaUpdateWrapper<OrderInfo>()
+                    .eq(OrderInfo::getId, orderId)
+                    .set(OrderInfo::getStatus, "已完成")
+                    .set(OrderInfo::getTempLeaveStartTime, null)
+                    .set(OrderInfo::getFinishTime, now));
             writeStatusLog(orderId, "已签到", "已完成", "STUDENT", "暂离返回时已到期");
             
             // 【修复点：对齐契约 4.2.5 到期分支成功响应结构】
@@ -383,10 +386,12 @@ public class OrderService {
                 return Result.error(code == null ? 500 : code, json.getStr("message"));
             }
             
-            order.setStatus("暂离超时释放");
-            order.setTempLeaveStartTime(null);
-            order.setFinishTime(now);
-            orderInfoMapper.updateById(order);
+            // 【修复：显式置 NULL】
+            orderInfoMapper.update(null, new LambdaUpdateWrapper<OrderInfo>()
+                    .eq(OrderInfo::getId, orderId)
+                    .set(OrderInfo::getStatus, "暂离超时释放")
+                    .set(OrderInfo::getTempLeaveStartTime, null)
+                    .set(OrderInfo::getFinishTime, now));
             writeStatusLog(orderId, "已签到", "暂离超时释放", "STUDENT", "暂离超时释放");
             writeViolation(orderId, userId, "暂离超时", "学生主动返回时发现暂离已超时");
             pushMessage("TEMP_LEAVE_TIMEOUT_RELEASE", userId, orderId, "暂离超时释放", "您暂离超过规定时限，座位已释放");
@@ -419,8 +424,10 @@ public class OrderService {
             return Result.error(code == null ? 500 : code, json.getStr("message"));
         }
         
-        order.setTempLeaveStartTime(null);
-        orderInfoMapper.updateById(order);
+        // 【修复：显式置 NULL】
+        orderInfoMapper.update(null, new LambdaUpdateWrapper<OrderInfo>()
+                .eq(OrderInfo::getId, orderId)
+                .set(OrderInfo::getTempLeaveStartTime, null));
         writeStatusLog(orderId, "已签到", "已签到", "STUDENT", "暂离返回重新签到");
 
         // 【修复点：对齐契约 4.2.5 正常返回成功响应结构】
@@ -460,10 +467,12 @@ public class OrderService {
             return Result.error(code == null ? 500 : code, json.getStr("message"));
         }
         
-        order.setStatus("已完成");
-        order.setTempLeaveStartTime(null);
-        order.setFinishTime(LocalDateTime.now());
-        orderInfoMapper.updateById(order);
+        // 【修复：显式置 NULL】
+        orderInfoMapper.update(null, new LambdaUpdateWrapper<OrderInfo>()
+                .eq(OrderInfo::getId, orderId)
+                .set(OrderInfo::getStatus, "已完成")
+                .set(OrderInfo::getTempLeaveStartTime, null)
+                .set(OrderInfo::getFinishTime, LocalDateTime.now()));
         writeStatusLog(orderId, "已签到", "已完成", "STUDENT", "主动离开签退");
 
         // 【修复点：对齐契约 4.2.6 成功响应结构】
@@ -576,10 +585,12 @@ public class OrderService {
                         continue; 
                     }
                     
-                    order.setStatus("已完成");
-                    order.setTempLeaveStartTime(null);
-                    order.setFinishTime(now);
-                    orderInfoMapper.updateById(order);
+                    // 【修复：显式置 NULL】
+                    orderInfoMapper.update(null, new LambdaUpdateWrapper<OrderInfo>()
+                            .eq(OrderInfo::getId, order.getId())
+                            .set(OrderInfo::getStatus, "已完成")
+                            .set(OrderInfo::getTempLeaveStartTime, null)
+                            .set(OrderInfo::getFinishTime, now));
                     writeStatusLog(order.getId(), "已签到", "已完成", "SYSTEM", "定时任务：使用到期");
                     pushMessage("USE_EXPIRED_COMPLETE", order.getUserId(), order.getId(), "使用到期完成", "您的预约已到期，座位已释放");
                     
@@ -604,6 +615,7 @@ public class OrderService {
                         seatReleaseFailed++; 
                         continue; 
                     }
+                    // 此处原代码 setFinishTime 后 updateById，无 null 字段需显式置空（tempLeaveStartTime 本就为 null，保持原样）
                     order.setStatus("超时释放");
                     order.setFinishTime(now);
                     orderInfoMapper.updateById(order);
@@ -634,10 +646,12 @@ public class OrderService {
                             seatReleaseFailed++; 
                             continue; 
                         }
-                        order.setStatus("暂离超时释放");
-                        order.setTempLeaveStartTime(null);
-                        order.setFinishTime(now);
-                        orderInfoMapper.updateById(order);
+                        // 【修复：显式置 NULL】
+                        orderInfoMapper.update(null, new LambdaUpdateWrapper<OrderInfo>()
+                                .eq(OrderInfo::getId, order.getId())
+                                .set(OrderInfo::getStatus, "暂离超时释放")
+                                .set(OrderInfo::getTempLeaveStartTime, null)
+                                .set(OrderInfo::getFinishTime, now));
                         writeStatusLog(order.getId(), "已签到", "暂离超时释放", "SYSTEM", "定时任务：暂离超时");
                         writeViolation(order.getId(), order.getUserId(), "暂离超时", "暂离超时未返回");
                         pushMessage("TEMP_LEAVE_TIMEOUT_RELEASE", order.getUserId(), order.getId(), "暂离超时释放", "您暂离超过规定时限，座位已释放");
