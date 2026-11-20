@@ -34,8 +34,8 @@ import { login } from '../api'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
-const username = ref('20230001')
-const password = ref('Password123!')
+const username = ref('')
+const password = ref('')
 const loading = ref(false)
 const router = useRouter()
 

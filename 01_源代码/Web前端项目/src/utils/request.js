@@ -3,7 +3,6 @@ import { ElMessage } from 'element-plus'
 import router from '../router'
 
 const request = axios.create({
-  baseURL: '', 
   timeout: 10000
 })
 
@@ -18,6 +17,7 @@ request.interceptors.request.use(config => {
 request.interceptors.response.use(
   response => {
     const res = response.data
+    // 保留 1006 给业务层处理（管理员强制维护）
     if (res.code === 1006) {
       return Promise.reject(res) 
     }
@@ -32,7 +32,7 @@ request.interceptors.response.use(
       ElMessage.error('登录已过期，请重新登录')
       localStorage.removeItem('token')
       router.push('/login')
-    } else {
+    } else if (!error.code) {
       ElMessage.error(error.message || '网络异常')
     }
     return Promise.reject(error)

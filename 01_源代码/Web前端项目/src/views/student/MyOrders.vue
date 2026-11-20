@@ -13,18 +13,30 @@
       <el-table-column prop="startTime" label="预约开始时间" width="160" />
       <el-table-column prop="endTime" label="预约结束时间" width="160" />
       
-      <el-table-column label="操作" width="280" fixed="right">
+      <el-table-column label="操作" width="300" fixed="right">
         <template #default="{ row }">
+          <!-- 1. 待签到 -->
           <template v-if="row.status === '待签到'">
             <el-button size="small" class="btn-light-green" @click="handleSignIn(row.orderId)">签到</el-button>
             <el-button size="small" class="btn-outline-brown" @click="handleCancel(row.orderId)">取消预约</el-button>
           </template>
           
+          <!-- 2. 已签到：通过 tempLeaveStartTime 判断是否暂离 -->
           <template v-if="row.status === '已签到'">
-            <el-button size="small" class="btn-light-blue" @click="handleTempLeave(row.orderId)">暂离</el-button>
-            <el-button size="small" class="btn-outline-brown" @click="handleLeave(row.orderId)">主动离开</el-button>
+            <!-- 情况 A：正常使用中 -->
+            <template v-if="!row.tempLeaveStartTime">
+              <el-button size="small" class="btn-light-blue" @click="handleTempLeave(row.orderId)">暂离</el-button>
+              <el-button size="small" class="btn-outline-brown" @click="handleLeave(row.orderId)">主动离开</el-button>
+            </template>
+            
+            <!-- 情况 B：暂离中 -->
+            <template v-else>
+              <el-button size="small" class="btn-light-green" @click="handleReturnBack(row.orderId)">暂离返回</el-button>
+              <el-button size="small" class="btn-outline-brown" @click="handleLeave(row.orderId)">主动离开</el-button>
+            </template>
           </template>
           
+          <!-- 3. 终态 -->
           <span v-if="['已完成', '已取消', '超时释放', '暂离超时释放'].includes(row.status)" style="color: #909399; font-size: 13px;">
             订单已结束
           </span>
@@ -36,7 +48,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { getMyOrders, signInOrder, cancelOrder, tempLeaveOrder, leaveOrder } from '../../api'
+import { getMyOrders, signInOrder, cancelOrder, tempLeaveOrder, leaveOrder, returnBackOrder } from '../../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const orders = ref([])
@@ -49,6 +61,7 @@ const loadOrders = async () => {
     const res = await getMyOrders()
     orders.value = res.list || res || []
   } catch (e) {
+    // 异常已被 axios 拦截器处理
   } finally {
     loading.value = false
   }
@@ -56,6 +69,7 @@ const loadOrders = async () => {
 
 onMounted(() => {
   loadOrders()
+  // 每 10 秒自动刷新一次
   timer = setInterval(loadOrders, 10000)
 })
 
@@ -64,24 +78,44 @@ onUnmounted(() => {
 })
 
 const handleSignIn = async (id) => { 
-  try { await signInOrder(id); ElMessage.success('签到成功'); loadOrders() } catch(e) {}
+  try { 
+    await signInOrder(id); 
+    ElMessage.success('签到成功'); 
+    loadOrders() 
+  } catch(e) {}
 }
 
 const handleCancel = async (id) => { 
   try {
     await ElMessageBox.confirm('确定取消该预约吗？', '提示', { type: 'warning' })
-    await cancelOrder(id); ElMessage.success('已取消'); loadOrders() 
+    await cancelOrder(id); 
+    ElMessage.success('已取消'); 
+    loadOrders() 
   } catch(e) {}
 }
 
 const handleTempLeave = async (id) => { 
-  try { await tempLeaveOrder(id); ElMessage.success('暂离成功'); loadOrders() } catch(e) {}
+  try { 
+    await tempLeaveOrder(id); 
+    ElMessage.success('暂离成功'); 
+    loadOrders() 
+  } catch(e) {}
+}
+
+const handleReturnBack = async (id) => { 
+  try { 
+    await returnBackOrder(id); 
+    ElMessage.success('返回成功'); 
+    loadOrders() 
+  } catch(e) {}
 }
 
 const handleLeave = async (id) => { 
   try {
     await ElMessageBox.confirm('确定要主动离开吗？', '提示', { type: 'info' })
-    await leaveOrder(id); ElMessage.success('已离开'); loadOrders() 
+    await leaveOrder(id); 
+    ElMessage.success('已离开'); 
+    loadOrders() 
   } catch(e) {}
 }
 
