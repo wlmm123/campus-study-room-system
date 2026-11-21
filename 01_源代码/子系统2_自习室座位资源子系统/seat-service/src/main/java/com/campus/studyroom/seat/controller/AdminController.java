@@ -64,7 +64,7 @@ public class AdminController {
         return Result.success();
     }
 
-    // === 3.6.7 调整座位状态（核心修改部分） ===
+    // === 3.6.7 调整座位状态 ===
     @PutMapping("/seats/{seatId}/status")
     public Result<?> changeSeatStatus(@PathVariable Long seatId, @RequestBody Map<String, String> body) {
         String targetStatus = body.get("status");

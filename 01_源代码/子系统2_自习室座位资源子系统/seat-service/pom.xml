@@ -56,7 +56,6 @@
             <version>0.9.1</version>
         </dependency>
 
-        <!-- 修复 JDK 11 下 jjwt-0.9.1 报 NoClassDefFoundError 的问题 -->
         <dependency>
             <groupId>javax.xml.bind</groupId>
             <artifactId>jaxb-api</artifactId>
