@@ -51,7 +51,6 @@ public class SeatDatabaseTest {
             seatInfoMapper.updateById(seat);
         }
 
-        // 清理旧的测试数据，防止主键冲突
         seatOccupancyMapper.deleteById(1L);
 
         // 插入一条真实的占用记录（模拟锁座成功）
