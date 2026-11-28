@@ -19,14 +19,14 @@ mybatis:
     map-underscore-to-camel-case: true
 
 internal:
-  token: campus_studyroom_internal_2026
+  token: campus_studyroom_internal_2026_5d8e2f1a
 
 remote:
-  order-service-url: http://localhost:8083
+  order-service-url: http://10.137.174.101:8083
 
 notify:
   scan:
-    interval: 30000 # 30秒一次定时任务
+    interval: 60000 # 60秒一次定时任务
 
 jwt:
   secret: CampusStudyRoom2026JwtSecret9f3a7c1e5b2d4a6f8e0c1b3d5a7e2f4c6
