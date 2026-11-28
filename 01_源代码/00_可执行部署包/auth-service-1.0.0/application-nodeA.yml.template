@@ -1,0 +1,31 @@
+# ==========================================================
+# 外置配置模板 —— 节点A（Windows 宿主机）
+# 交付给成员6时，连同 jar 一起放进 config/ 目录，或在节点上按本模板填。
+# 【不提交仓库】：本模板不含真实密钥，实际 delivery 用填好值的副本。
+# 使用：java -jar auth-service-1.0.0.jar --spring.config.additional-location=./config/
+# ==========================================================
+server:
+  port: 8081
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://10.165.59.231:3306/auth_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: "请填写节点A MySQL 口令"
+
+# 四个子系统必须完全一致，否则全员 401（契约 1.3 / 开发契约 6.3）
+jwt:
+  secret: "请从群文件《开发环境与全局配置统一通知》复制，四端一致"
+  expire-seconds: 7200
+
+# 8081 目前没有内部接口，保留配置项以与其余三端对齐
+internal:
+  token: "请从群文件《开发环境与全局配置统一通知》复制，四端一致"
+
+remote:
+  connect-timeout-ms: 2000
+  read-timeout-ms: 5000
+  seat-service-url: http://10.165.59.231:8082
+  order-service-url: http://192.168.56.101:8083
+  notify-service-url: http://192.168.56.101:8084
